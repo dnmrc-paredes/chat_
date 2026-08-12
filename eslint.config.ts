@@ -31,7 +31,7 @@ module.exports = defineConfig([
         },
       ],
       "@typescript-eslint/no-explicit-any": 2,
-      "no-console": 1,
+      "no-console": [1, { allow: ["warn", "error"] }],
       "no-duplicate-imports": "error",
     },
   },
