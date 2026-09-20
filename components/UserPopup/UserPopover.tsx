@@ -5,7 +5,7 @@ import { createPortal } from "react-dom"
 import Link from "next/link"
 import { useLobbyChannel } from "../Providers/Lobby"
 import { Avatar, AvatarFallback } from "../ui/avatar"
-import { Button } from "../ui/button"
+import { Button, buttonVariants } from "../ui/button"
 import { cn, deriveHandle, getInitials } from "@/lib/utils"
 
 const PANEL_WIDTH = 256
@@ -95,9 +95,17 @@ export const UserPopover = ({
       ) : (
         <div className="flex flex-col gap-2">
           {friendStatus === "accepted" && (
-            <Button disabled variant="secondary" className="justify-between">
-              Friends
-            </Button>
+            <>
+              <Link
+                href={`/dms/${userId}`}
+                className={cn(buttonVariants(), "justify-between")}
+              >
+                Message
+              </Link>
+              <Button disabled variant="secondary" className="justify-between">
+                Friends
+              </Button>
+            </>
           )}
           {friendStatus === "outgoing" && (
             <Button disabled variant="secondary" className="justify-between">

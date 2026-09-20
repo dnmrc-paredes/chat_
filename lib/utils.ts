@@ -22,3 +22,6 @@ export const deriveHandle = (
   username ||
   name.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 20) ||
   id.slice(0, 8)
+
+export const conversationPair = (a: string, b: string): [string, string] =>
+  a < b ? [a, b] : [b, a]
