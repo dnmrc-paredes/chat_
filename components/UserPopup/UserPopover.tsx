@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
+import Link from "next/link"
 import { useLobbyChannel } from "../Providers/Lobby"
 import { Avatar, AvatarFallback } from "../ui/avatar"
 import { Button } from "../ui/button"
@@ -151,6 +152,13 @@ export const UserPopover = ({
           </Button>
         </div>
       )}
+
+      <Link
+        href={`/profile/${userId}`}
+        className="text-center text-xs text-muted-foreground hover:text-foreground hover:underline"
+      >
+        View profile
+      </Link>
     </div>,
     document.body,
   )
