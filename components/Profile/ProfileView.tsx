@@ -35,14 +35,24 @@ export const ProfileView = ({
   initialBlocked,
 }: ProfileViewProps) => {
   const isSelf = currentUserId === profile.id
-  const { status, isBlocked, friendsSince, addFriend, acceptFriend, removeFriend, block, unblock } =
-    useRelations(profile.id, initialFriendship, initialBlocked)
+  const {
+    status,
+    isBlocked,
+    friendsSince,
+    addFriend,
+    acceptFriend,
+    removeFriend,
+    block,
+    unblock,
+  } = useRelations(profile.id, initialFriendship, initialBlocked)
   const handle = deriveHandle(profile.username, profile.name, profile.id)
 
   return (
     <div className="flex w-full max-w-md flex-col items-center gap-5 rounded-md border-2 border-input p-8">
       <Avatar className="size-24">
-        <AvatarFallback className="text-2xl">{getInitials(profile.name)}</AvatarFallback>
+        <AvatarFallback className="text-2xl">
+          {getInitials(profile.name)}
+        </AvatarFallback>
       </Avatar>
 
       <div className="flex flex-col items-center gap-1 text-center">

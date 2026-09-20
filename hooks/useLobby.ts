@@ -105,7 +105,8 @@ export const useLobby = (user: User | null) => {
   const channelRef = useRef<RealtimeChannel | null>(null)
 
   const handlePresenceSync = useCallback((channel: RealtimeChannel) => {
-    const state = channel.presenceState() as RealtimePresenceState<PresencePayload>
+    const state =
+      channel.presenceState() as RealtimePresenceState<PresencePayload>
     const users = Object.values(state)
       .flat()
       .map(({ user_id, name }) => ({ user_id, name }))
@@ -127,7 +128,11 @@ export const useLobby = (user: User | null) => {
       .select("*")
       .or(`user_a.eq.${user.id},user_b.eq.${user.id}`)
       .then(({ data, error }) => {
-        if (!error && data) setFriendships(data as Friendship[])
+        if (error) {
+          console.error(error)
+          return
+        }
+        setFriendships(data as Friendship[])
       })
 
     supabase
@@ -135,7 +140,11 @@ export const useLobby = (user: User | null) => {
       .select("*")
       .eq("user_id", user.id)
       .then(({ data, error }) => {
-        if (!error && data) setBlocks(data as Block[])
+        if (error) {
+          console.error(error)
+          return
+        }
+        setBlocks(data as Block[])
       })
   }, [user])
 
@@ -253,12 +262,19 @@ export const useLobby = (user: User | null) => {
     async (targetId: string) => {
       if (!user || targetId === user.id) return
 
-      const { error } = await browserClient()
-        .from("friendships")
-        .insert({ user_a: user.id, user_b: targetId, status: "pending" })
+      let error: Error | null = null
+
+      try {
+        ;({ error } = await browserClient()
+          .from("friendships")
+          .insert({ user_a: user.id, user_b: targetId, status: "pending" }))
+      } catch (err) {
+        error = err as Error
+      }
 
       if (error) {
         console.error(error)
+        toast("Couldn't send friend request.")
         return
       }
 
@@ -286,14 +302,21 @@ export const useLobby = (user: User | null) => {
     async (targetId: string) => {
       if (!user) return
 
-      const { error } = await browserClient()
-        .from("friendships")
-        .update({ status: "accepted" })
-        .eq("user_a", targetId)
-        .eq("user_b", user.id)
+      let error: Error | null = null
+
+      try {
+        ;({ error } = await browserClient()
+          .from("friendships")
+          .update({ status: "accepted" })
+          .eq("user_a", targetId)
+          .eq("user_b", user.id))
+      } catch (err) {
+        error = err as Error
+      }
 
       if (error) {
         console.error(error)
+        toast("Couldn't accept friend request.")
         return
       }
 
@@ -324,12 +347,19 @@ export const useLobby = (user: User | null) => {
     async (targetId: string) => {
       if (!user || targetId === user.id) return
 
-      const { error } = await browserClient()
-        .from("blocks")
-        .insert({ user_id: user.id, blocked_user_id: targetId })
+      let error: Error | null = null
+
+      try {
+        ;({ error } = await browserClient()
+          .from("blocks")
+          .insert({ user_id: user.id, blocked_user_id: targetId }))
+      } catch (err) {
+        error = err as Error
+      }
 
       if (error) {
         console.error(error)
+        toast("Couldn't block user.")
         return
       }
 
@@ -354,11 +384,23 @@ export const useLobby = (user: User | null) => {
     async (targetId: string) => {
       if (!user) return
 
-      await browserClient()
-        .from("blocks")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("blocked_user_id", targetId)
+      let error: Error | null = null
+
+      try {
+        ;({ error } = await browserClient()
+          .from("blocks")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("blocked_user_id", targetId))
+      } catch (err) {
+        error = err as Error
+      }
+
+      if (error) {
+        console.error(error)
+        toast("Couldn't unblock user.")
+        return
+      }
 
       setBlocks((prev) => prev.filter((b) => b.blocked_user_id !== targetId))
     },

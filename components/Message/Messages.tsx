@@ -57,7 +57,9 @@ export const MessageList = () => {
       {visibleMessages.map((message) => {
         const isOwn = message.sender_id === user?.id
         const isMentionedMessage =
-          !!user && message.sender_id !== user.id && isMentioned(message.text, user)
+          !!user &&
+          message.sender_id !== user.id &&
+          isMentioned(message.text, user)
 
         return (
           <li

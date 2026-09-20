@@ -1,5 +1,3 @@
 {
-  "plugin": [
-    "opencode-supabase"
-  ]
+  "plugin": ["opencode-supabase"]
 }

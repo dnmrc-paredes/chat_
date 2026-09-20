@@ -1,12 +1,6 @@
 "use client"
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type UIEvent,
-} from "react"
+import { useCallback, useEffect, useRef, useState, type UIEvent } from "react"
 import { ArrowLeft, Loader2, SendHorizonal } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -83,6 +77,9 @@ export const DMThread = ({
       .eq("conversation_id", conversationId)
       .neq("sender_id", currentUserId)
       .eq("is_read", false)
+      .then(({ error }) => {
+        if (error) console.error(error)
+      })
   }, [conversationId, currentUserId])
 
   useEffect(() => {
@@ -128,36 +125,46 @@ export const DMThread = ({
     }
     setIsLoadingOlder(true)
 
-    const { data, error } = await browserClient()
-      .from("dm_messages")
-      .select("*")
-      .eq("conversation_id", conversationId)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .lt("created_at", oldest.created_at)
-      .limit(PAGE_SIZE)
+    try {
+      const { data, error } = await browserClient()
+        .from("dm_messages")
+        .select("*")
+        .eq("conversation_id", conversationId)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .lt("created_at", oldest.created_at)
+        .limit(PAGE_SIZE)
 
-    if (!error && data) {
-      const older = (data as DMMessage[]).reverse()
+      if (error) {
+        console.error(error)
+        return
+      }
 
-      setMessages((prev) => {
-        const seen = new Set(prev.map((message) => message.id))
-        const fresh = older.filter((message) => !seen.has(message.id))
-        oldestRef.current = fresh[0] ?? oldestRef.current
-        return [...fresh, ...prev]
-      })
+      if (data) {
+        const older = (data as DMMessage[]).reverse()
 
-      if ((data as DMMessage[]).length < PAGE_SIZE) setHasMore(false)
+        setMessages((prev) => {
+          const seen = new Set(prev.map((message) => message.id))
+          const fresh = older.filter((message) => !seen.has(message.id))
+          oldestRef.current = fresh[0] ?? oldestRef.current
+          return [...fresh, ...prev]
+        })
 
-      requestAnimationFrame(() => {
-        const container = containerRef.current
-        if (!container) return
-        const delta = container.scrollHeight - scrollDataRef.current.scrollHeight
-        container.scrollTop = scrollDataRef.current.scrollTop + delta
-      })
+        if ((data as DMMessage[]).length < PAGE_SIZE) setHasMore(false)
+
+        requestAnimationFrame(() => {
+          const container = containerRef.current
+          if (!container) return
+          const delta =
+            container.scrollHeight - scrollDataRef.current.scrollHeight
+          container.scrollTop = scrollDataRef.current.scrollTop + delta
+        })
+      }
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setIsLoadingOlder(false)
     }
-
-    setIsLoadingOlder(false)
   }, [conversationId, hasMore, isLoadingOlder])
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
@@ -173,28 +180,36 @@ export const DMThread = ({
     }
 
     setInput("")
-    const { data, error } = await browserClient()
-      .from("dm_messages")
-      .insert({
-        conversation_id: conversationId,
-        sender_id: currentUserId,
-        sender_name: currentUserName,
-        text,
-      })
-      .select()
-      .single()
 
-    if (error) {
+    let sent: DMMessage | null = null
+
+    try {
+      const { data, error } = await browserClient()
+        .from("dm_messages")
+        .insert({
+          conversation_id: conversationId,
+          sender_id: currentUserId,
+          sender_name: currentUserName,
+          text,
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error(error)
+        toast("Failed to send message.")
+        return
+      }
+
+      sent = data as DMMessage
+    } catch (error) {
       console.error(error)
       toast("Failed to send message.")
       return
     }
 
-    const message = data as DMMessage
     setMessages((prev) =>
-      prev.some((existing) => existing.id === message.id)
-        ? prev
-        : [...prev, message],
+      prev.some((existing) => existing.id === sent.id) ? prev : [...prev, sent],
     )
 
     requestAnimationFrame(() => {
@@ -222,7 +237,9 @@ export const DMThread = ({
         </Avatar>
         <div className="flex min-w-0 flex-col">
           <span className="truncate text-sm font-medium">{peer.name}</span>
-          <span className="truncate text-xs text-muted-foreground">@{handle}</span>
+          <span className="truncate text-xs text-muted-foreground">
+            @{handle}
+          </span>
         </div>
       </header>
 
@@ -254,7 +271,10 @@ export const DMThread = ({
                 isOwn ? "items-end self-end" : "items-start self-start",
               )}
             >
-              <Bubble align={isOwn ? "end" : "start"} variant={isOwn ? "default" : "secondary"}>
+              <Bubble
+                align={isOwn ? "end" : "start"}
+                variant={isOwn ? "default" : "secondary"}
+              >
                 <BubbleContent>{message.text}</BubbleContent>
               </Bubble>
               <span className="text-[10px] text-muted-foreground">

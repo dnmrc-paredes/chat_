@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { toast } from "sonner"
 import { useSession } from "@/hooks/useAuth"
 import { browserClient } from "@/lib/supabase/client"
 
@@ -84,25 +85,51 @@ export const useNotifications = () => {
     [notifications],
   )
 
-  const markAllRead = useCallback(() => {
+  const markAllRead = useCallback(async () => {
     if (!user) return
 
-    browserClient()
-      .from("notifications")
-      .update({ is_read: true })
-      .eq("user_id", user.id)
-      .eq("is_read", false)
-      .then(() => refresh())
+    try {
+      const { error } = await browserClient()
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("user_id", user.id)
+        .eq("is_read", false)
+
+      if (error) {
+        console.error(error)
+        toast("Couldn't mark notifications as read.")
+        return
+      }
+    } catch (error) {
+      console.error(error)
+      toast("Couldn't mark notifications as read.")
+      return
+    }
+
+    refresh()
   }, [user, refresh])
 
-  const clearAll = useCallback(() => {
+  const clearAll = useCallback(async () => {
     if (!user) return
 
-    browserClient()
-      .from("notifications")
-      .delete()
-      .eq("user_id", user.id)
-      .then(() => refresh())
+    try {
+      const { error } = await browserClient()
+        .from("notifications")
+        .delete()
+        .eq("user_id", user.id)
+
+      if (error) {
+        console.error(error)
+        toast("Couldn't clear notifications.")
+        return
+      }
+    } catch (error) {
+      console.error(error)
+      toast("Couldn't clear notifications.")
+      return
+    }
+
+    refresh()
   }, [user, refresh])
 
   return { notifications, unread, markAllRead, clearAll }

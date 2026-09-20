@@ -28,8 +28,16 @@ export const UserPopover = ({
   onClose,
 }: UserPopoverProps) => {
   const panelRef = useRef<HTMLDivElement | null>(null)
-  const { user, getFriendStatus, isBlockedByMe, addFriend, acceptFriend, blockUser, unblockUser, mentionUser } =
-    useLobbyChannel()
+  const {
+    user,
+    getFriendStatus,
+    isBlockedByMe,
+    addFriend,
+    acceptFriend,
+    blockUser,
+    unblockUser,
+    mentionUser,
+  } = useLobbyChannel()
 
   const isSelf = userId === user?.id
   const handle = deriveHandle(username, name, userId)
@@ -66,8 +74,7 @@ export const UserPopover = ({
   if (!anchorEl) return null
 
   const rect = anchorEl.getBoundingClientRect()
-  let left =
-    align === "end" ? rect.right - PANEL_WIDTH : rect.left
+  let left = align === "end" ? rect.right - PANEL_WIDTH : rect.left
   left = Math.max(8, Math.min(left, window.innerWidth - PANEL_WIDTH - 8))
   const top = rect.bottom + 8
 

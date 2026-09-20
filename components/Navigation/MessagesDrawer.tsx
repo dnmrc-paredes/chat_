@@ -29,7 +29,6 @@ export const MessagesDrawer = ({
   conversations,
   isLoading,
 }: MessagesDrawerProps) => {
-
   useEffect(() => {
     if (!isOpen) return
 

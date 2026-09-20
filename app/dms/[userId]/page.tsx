@@ -86,7 +86,9 @@ export default async function DMPage({
       }
       currentUserId={user.id}
       currentUserName={
-        (user.user_metadata?.name as string | undefined) ?? user.email ?? "Guest"
+        (user.user_metadata?.name as string | undefined) ??
+        user.email ??
+        "Guest"
       }
       initialMessages={initialMessages}
     />

@@ -26,7 +26,9 @@ export const useRelations = (
   initialBlocked = false,
 ) => {
   const { user } = useSession()
-  const [friendship, setFriendship] = useState<Friendship | null>(initialFriendship)
+  const [friendship, setFriendship] = useState<Friendship | null>(
+    initialFriendship,
+  )
   const [isBlocked, setIsBlocked] = useState(initialBlocked)
 
   const refresh = useCallback(() => {
@@ -39,7 +41,13 @@ export const useRelations = (
         `and(user_a.eq.${user.id},user_b.eq.${targetId}),and(user_a.eq.${targetId},user_b.eq.${user.id})`,
       )
       .maybeSingle()
-      .then(({ data }) => setFriendship((data as Friendship | null) ?? null))
+      .then(({ data, error }) => {
+        if (error) {
+          console.error(error)
+          return
+        }
+        setFriendship((data as Friendship | null) ?? null)
+      })
 
     browserClient()
       .from("blocks")
@@ -47,7 +55,13 @@ export const useRelations = (
       .eq("user_id", user.id)
       .eq("blocked_user_id", targetId)
       .maybeSingle()
-      .then(({ data }) => setIsBlocked((data as Block | null) !== null))
+      .then(({ data, error }) => {
+        if (error) {
+          console.error(error)
+          return
+        }
+        setIsBlocked((data as Block | null) !== null)
+      })
   }, [user, targetId])
 
   useEffect(() => {
@@ -68,12 +82,19 @@ export const useRelations = (
   const addFriend = useCallback(async () => {
     if (!user || targetId === user.id) return
 
-    const { error } = await browserClient()
-      .from("friendships")
-      .insert({ user_a: user.id, user_b: targetId, status: "pending" })
+    try {
+      const { error } = await browserClient()
+        .from("friendships")
+        .insert({ user_a: user.id, user_b: targetId, status: "pending" })
 
-    if (error) {
+      if (error) {
+        console.error(error)
+        toast("Couldn't send friend request.")
+        return
+      }
+    } catch (error) {
       console.error(error)
+      toast("Couldn't send friend request.")
       return
     }
 
@@ -89,14 +110,21 @@ export const useRelations = (
   const acceptFriend = useCallback(async () => {
     if (!user || status !== "incoming") return
 
-    const { error } = await browserClient()
-      .from("friendships")
-      .update({ status: "accepted" })
-      .eq("user_a", targetId)
-      .eq("user_b", user.id)
+    try {
+      const { error } = await browserClient()
+        .from("friendships")
+        .update({ status: "accepted" })
+        .eq("user_a", targetId)
+        .eq("user_b", user.id)
 
-    if (error) {
+      if (error) {
+        console.error(error)
+        toast("Couldn't accept friend request.")
+        return
+      }
+    } catch (error) {
       console.error(error)
+      toast("Couldn't accept friend request.")
       return
     }
 
@@ -112,12 +140,24 @@ export const useRelations = (
   const removeFriend = useCallback(async () => {
     if (!user || status !== "accepted") return
 
-    await browserClient()
-      .from("friendships")
-      .delete()
-      .or(
-        `and(user_a.eq.${user.id},user_b.eq.${targetId}),and(user_a.eq.${targetId},user_b.eq.${user.id})`,
-      )
+    try {
+      const { error } = await browserClient()
+        .from("friendships")
+        .delete()
+        .or(
+          `and(user_a.eq.${user.id},user_b.eq.${targetId}),and(user_a.eq.${targetId},user_b.eq.${user.id})`,
+        )
+
+      if (error) {
+        console.error(error)
+        toast("Couldn't remove friend.")
+        return
+      }
+    } catch (error) {
+      console.error(error)
+      toast("Couldn't remove friend.")
+      return
+    }
 
     setFriendship(null)
     toast("Friend removed.")
@@ -126,12 +166,19 @@ export const useRelations = (
   const block = useCallback(async () => {
     if (!user || targetId === user.id) return
 
-    const { error } = await browserClient()
-      .from("blocks")
-      .insert({ user_id: user.id, blocked_user_id: targetId })
+    try {
+      const { error } = await browserClient()
+        .from("blocks")
+        .insert({ user_id: user.id, blocked_user_id: targetId })
 
-    if (error) {
+      if (error) {
+        console.error(error)
+        toast("Couldn't block user.")
+        return
+      }
+    } catch (error) {
       console.error(error)
+      toast("Couldn't block user.")
       return
     }
 
@@ -145,11 +192,23 @@ export const useRelations = (
   const unblock = useCallback(async () => {
     if (!user) return
 
-    await browserClient()
-      .from("blocks")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("blocked_user_id", targetId)
+    try {
+      const { error } = await browserClient()
+        .from("blocks")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("blocked_user_id", targetId)
+
+      if (error) {
+        console.error(error)
+        toast("Couldn't unblock user.")
+        return
+      }
+    } catch (error) {
+      console.error(error)
+      toast("Couldn't unblock user.")
+      return
+    }
 
     setIsBlocked(false)
   }, [user, targetId])
