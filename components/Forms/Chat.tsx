@@ -7,7 +7,7 @@ import {
   InputGroupButton,
 } from "../ui/input-group"
 import { SendHorizonal } from "lucide-react"
-import { type SubmitEvent, useEffect } from "react"
+import { type SubmitEvent, useEffect, useState } from "react"
 import { toast } from "sonner"
 import { useLobbyChannel } from "@/components/Providers/Lobby"
 import { cn } from "@/lib/utils"
@@ -17,14 +17,13 @@ const MAX_LENGTH = 500
 export const ChatForm = () => {
   const { inputText, setInputText, sendMessage, isConnected } =
     useLobbyChannel()
+  const [isHydrated, setIsHydrated] = useState(false)
 
   useEffect(() => {
-    const to = new URLSearchParams(window.location.search).get("to")
-    if (!to) return
+    const frame = requestAnimationFrame(() => setIsHydrated(true))
 
-    setInputText((prev) => `${prev ? prev.trimEnd() + " " : ""}@${to} `)
-    document.getElementById("chat-input")?.focus()
-  }, [setInputText])
+    return () => cancelAnimationFrame(frame)
+  }, [])
 
   const length = inputText.trim().length
   const isOverLimit = length > MAX_LENGTH
@@ -49,7 +48,7 @@ export const ChatForm = () => {
           id="chat-input"
           placeholder="Send what's on your mind."
           value={inputText}
-          disabled={!isConnected}
+          disabled={isHydrated ? !isConnected : false}
           onChange={(event) => setInputText(event.target.value)}
         />
         <InputGroupAddon align="inline-end">

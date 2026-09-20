@@ -1,16 +1,25 @@
 "use client"
 
-import { Bell, Home, LogOut, User2, X } from "lucide-react"
+import {
+  Bell,
+  Home,
+  LogOut,
+  MessagesSquare,
+  User2,
+  X,
+} from "lucide-react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
 import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { browserClient } from "@/lib/supabase/client"
+import { useInbox } from "@/hooks/useInbox"
 import { useNotifications } from "@/hooks/useNotifications"
 import { cn, getInitials } from "@/lib/utils"
 import { useLobbyChannel } from "../Providers/Lobby"
 import { Avatar, AvatarFallback } from "../ui/avatar"
 import { Button } from "../ui/button"
+import { MessagesDrawer } from "./MessagesDrawer"
 
 const navigations = [
   {
@@ -41,7 +50,14 @@ export const Sidebar = () => {
     focusMessage,
   } = useLobbyChannel()
   const { notifications, unread, markAllRead, clearAll } = useNotifications()
+  const {
+    conversations,
+    unread: unreadMessages,
+    isLoading,
+    markConversationRead,
+  } = useInbox()
   const [isOpen, setIsOpen] = useState(false)
+  const [isMessagesOpen, setIsMessagesOpen] = useState(false)
 
   useEffect(() => {
     if (!isOpen) return
@@ -103,6 +119,22 @@ export const Sidebar = () => {
             </li>
           )
         })}
+        <li>
+          <button
+            type="button"
+            onClick={() => setIsMessagesOpen(true)}
+            aria-label="Messages"
+            aria-expanded={isMessagesOpen}
+            className="relative flex size-10 cursor-pointer items-center justify-center rounded-md hover:bg-muted"
+          >
+            <MessagesSquare size={20} />
+            {unreadMessages > 0 && (
+              <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-medium text-white">
+                {unreadMessages > 9 ? "9+" : unreadMessages}
+              </span>
+            )}
+          </button>
+        </li>
         <li>
           <button
             type="button"
@@ -248,6 +280,14 @@ export const Sidebar = () => {
           </div>,
           document.body,
         )}
+
+      <MessagesDrawer
+        isOpen={isMessagesOpen}
+        onClose={() => setIsMessagesOpen(false)}
+        onOpenConversation={markConversationRead}
+        conversations={conversations}
+        isLoading={isLoading}
+      />
     </div>
   )
 }

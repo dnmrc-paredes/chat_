@@ -72,7 +72,7 @@ export const ProfileView = ({
               </p>
             )}
             <div className="flex flex-wrap justify-center gap-2">
-              <Link href={`/home?to=${handle}`} className={buttonVariants()}>
+              <Link href={`/dms/${profile.id}`} className={buttonVariants()}>
                 Message
               </Link>
               <Button variant="outline" onClick={removeFriend}>
