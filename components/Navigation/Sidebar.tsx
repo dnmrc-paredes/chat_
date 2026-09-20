@@ -1,13 +1,6 @@
 "use client"
 
-import {
-  Bell,
-  Home,
-  LogOut,
-  MessagesSquare,
-  User2,
-  X,
-} from "lucide-react"
+import { Bell, Home, LogOut, MessagesSquare, User2, X } from "lucide-react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
 import { useEffect, useState } from "react"
@@ -209,7 +202,9 @@ export const Sidebar = () => {
                         <span
                           className={cn(
                             "size-1.5 shrink-0 rounded-full",
-                            notification.is_read ? "bg-transparent" : "bg-primary",
+                            notification.is_read
+                              ? "bg-transparent"
+                              : "bg-primary",
                           )}
                         />
                         <span className="min-w-0 flex-1 truncate text-xs">
