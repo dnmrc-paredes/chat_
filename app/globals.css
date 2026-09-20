@@ -129,6 +129,11 @@
   html {
     @apply font-mono;
   }
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  a {
+    cursor: pointer;
+  }
   .highlight-message {
     outline: 2px solid color-mix(in oklch, var(--primary), transparent 40%);
     outline-offset: 2px;

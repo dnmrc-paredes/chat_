@@ -7,6 +7,7 @@ import type {
   User,
 } from "@supabase/supabase-js"
 import { toast } from "sonner"
+import { LOBBY_CHANNEL } from "@/lib/supabase/broadcast"
 import { browserClient } from "@/lib/supabase/client"
 import { deriveHandle } from "@/lib/utils"
 
@@ -36,6 +37,7 @@ export type Friendship = {
   user_a: string
   user_b: string
   status: "pending" | "accepted"
+  created_at?: string
 }
 
 export type Block = {
@@ -64,11 +66,10 @@ type UserBlockedPayload = {
   sender_id: string
 }
 
-const CHANNEL_NAME = "room:lobby:messages"
-const MESSAGE_EVENT = "message_sent"
-const FRIEND_REQUEST_EVENT = "friend_request"
-const FRIEND_ACCEPTED_EVENT = "friend_accepted"
-const USER_BLOCKED_EVENT = "user_blocked"
+export const MESSAGE_EVENT = "message_sent"
+export const FRIEND_REQUEST_EVENT = "friend_request"
+export const FRIEND_ACCEPTED_EVENT = "friend_accepted"
+export const USER_BLOCKED_EVENT = "user_blocked"
 const MAX_MESSAGES = 100
 const MAX_MENTIONS = 50
 
@@ -144,7 +145,7 @@ export const useLobby = (user: User | null) => {
 
   useEffect(() => {
     const channel = browserClient()
-      .channel(CHANNEL_NAME, {
+      .channel(LOBBY_CHANNEL, {
         config: { broadcast: { self: true } },
       })
       .on("broadcast", { event: MESSAGE_EVENT }, ({ payload }) => {

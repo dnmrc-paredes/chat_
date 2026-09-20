@@ -3,7 +3,6 @@ import { Geist, Geist_Mono, JetBrains_Mono } from "next/font/google"
 import "./globals.css"
 import { cn } from "@/lib/utils"
 import { Toaster } from "@/components/ui/sonner"
-import { Sidebar } from "@/components/Navigation/Sidebar"
 
 const jetbrainsMonoHeading = JetBrains_Mono({
   subsets: ["latin"],

@@ -6,7 +6,10 @@ import { redirect } from "next/navigation"
 import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { browserClient } from "@/lib/supabase/client"
+import { useNotifications } from "@/hooks/useNotifications"
+import { cn, getInitials } from "@/lib/utils"
 import { useLobbyChannel } from "../Providers/Lobby"
+import { Avatar, AvatarFallback } from "../ui/avatar"
 import { Button } from "../ui/button"
 
 const navigations = [
@@ -29,8 +32,15 @@ const formatTime = (timestamp: string) =>
   }).format(new Date(timestamp))
 
 export const Sidebar = () => {
-  const { mentions, unreadMentions, markMentionsRead, clearMentions, focusMessage } =
-    useLobbyChannel()
+  const {
+    user,
+    mentions,
+    unreadMentions,
+    markMentionsRead,
+    clearMentions,
+    focusMessage,
+  } = useLobbyChannel()
+  const { notifications, unread, markAllRead, clearAll } = useNotifications()
   const [isOpen, setIsOpen] = useState(false)
 
   useEffect(() => {
@@ -53,6 +63,7 @@ export const Sidebar = () => {
   const handleToggle = () => {
     if (!isOpen) {
       markMentionsRead()
+      markAllRead()
     }
     setIsOpen((prev) => !prev)
   }
@@ -60,13 +71,32 @@ export const Sidebar = () => {
   return (
     <div className="w-full flex relative items-center justify-center">
       <ul className="flex items-center justify-center gap-4">
+        {user && (
+          <li>
+            <Link
+              href={`/profile/${user.id}`}
+              aria-label="My profile"
+              className="flex size-10 cursor-pointer items-center justify-center rounded-md hover:bg-muted"
+            >
+              <Avatar className="size-6">
+                <AvatarFallback className="text-[10px]">
+                  {getInitials(
+                    (user.user_metadata?.name as string | undefined) ??
+                      user.email ??
+                      "?",
+                  )}
+                </AvatarFallback>
+              </Avatar>
+            </Link>
+          </li>
+        )}
         {navigations.map((item) => {
           return (
             <li key={item.name}>
               <Link
                 href={item.href}
                 aria-label={item.name}
-                className="cursor-pointer"
+                className="flex size-10 cursor-pointer items-center justify-center rounded-md hover:bg-muted"
               >
                 {item.icon}
               </Link>
@@ -79,12 +109,12 @@ export const Sidebar = () => {
             onClick={handleToggle}
             aria-label="Mentions"
             aria-expanded={isOpen}
-            className="relative cursor-pointer"
+            className="relative flex size-10 cursor-pointer items-center justify-center rounded-md hover:bg-muted"
           >
             <Bell size={20} />
-            {unreadMentions > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-medium text-white">
-                {unreadMentions > 9 ? "9+" : unreadMentions}
+            {unreadMentions + unread > 0 && (
+              <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-medium text-white">
+                {unreadMentions + unread > 9 ? "9+" : unreadMentions + unread}
               </span>
             )}
           </button>
@@ -94,7 +124,7 @@ export const Sidebar = () => {
             type="button"
             onClick={handleLogout}
             aria-label="Logout"
-            className="cursor-pointer"
+            className="flex size-10 cursor-pointer items-center justify-center rounded-md hover:bg-muted"
           >
             <LogOut size={20} />
           </button>
@@ -124,44 +154,90 @@ export const Sidebar = () => {
                 </button>
               </div>
 
-              <div className="flex max-h-96 flex-col gap-1 overflow-y-auto">
-                {mentions.length === 0 ? (
-                  <span className="p-2 text-xs text-muted-foreground">
-                    No mentions yet
-                  </span>
-                ) : (
-                  mentions.map((mention) => (
-                    <button
-                      key={mention.id}
-                      type="button"
-                      onClick={() => {
-                        focusMessage(mention.id)
-                        setIsOpen(false)
-                      }}
-                      className="flex cursor-pointer flex-col gap-0.5 rounded-md p-2 text-left hover:bg-muted"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-medium">
-                          {mention.sender_name}
+              <div className="flex max-h-96 flex-col gap-4 overflow-y-auto">
+                <section className="flex flex-col gap-1">
+                  <h3 className="px-2 text-[11px] font-medium text-muted-foreground">
+                    Friend requests
+                  </h3>
+                  {notifications.length === 0 ? (
+                    <span className="p-2 text-xs text-muted-foreground">
+                      Nothing here yet
+                    </span>
+                  ) : (
+                    notifications.map((notification) => (
+                      <Link
+                        key={notification.id}
+                        href={
+                          notification.sender_id
+                            ? `/profile/${notification.sender_id}`
+                            : "#"
+                        }
+                        className="flex cursor-pointer items-center gap-2 rounded-md p-2 text-left hover:bg-muted"
+                      >
+                        <span
+                          className={cn(
+                            "size-1.5 shrink-0 rounded-full",
+                            notification.is_read ? "bg-transparent" : "bg-primary",
+                          )}
+                        />
+                        <span className="min-w-0 flex-1 truncate text-xs">
+                          {notification.kind === "friend_request"
+                            ? `${notification.sender_name} sent you a friend request.`
+                            : `${notification.sender_name} accepted your friend request.`}
                         </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {formatTime(mention.created_at)}
+                        <span className="shrink-0 text-[10px] text-muted-foreground">
+                          {formatTime(notification.created_at)}
                         </span>
-                      </div>
-                      <p className="line-clamp-2 text-xs text-muted-foreground">
-                        {mention.text}
-                      </p>
-                    </button>
-                  ))
-                )}
+                      </Link>
+                    ))
+                  )}
+                </section>
+
+                <section className="flex flex-col gap-1">
+                  <h3 className="px-2 text-[11px] font-medium text-muted-foreground">
+                    Mentions
+                  </h3>
+                  {mentions.length === 0 ? (
+                    <span className="p-2 text-xs text-muted-foreground">
+                      No mentions yet
+                    </span>
+                  ) : (
+                    mentions.map((mention) => (
+                      <button
+                        key={mention.id}
+                        type="button"
+                        onClick={() => {
+                          focusMessage(mention.id)
+                          setIsOpen(false)
+                        }}
+                        className="flex cursor-pointer flex-col gap-0.5 rounded-md p-2 text-left hover:bg-muted"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-medium">
+                            {mention.sender_name}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {formatTime(mention.created_at)}
+                          </span>
+                        </div>
+                        <p className="line-clamp-2 text-xs text-muted-foreground">
+                          {mention.text}
+                        </p>
+                      </button>
+                    ))
+                  )}
+                </section>
               </div>
 
-              {mentions.length > 0 && (
+              {(mentions.length > 0 || notifications.length > 0) && (
                 <div className="flex justify-end">
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={clearMentions}
+                    onClick={() => {
+                      clearMentions()
+                      clearAll()
+                    }}
                     className="cursor-pointer"
                   >
                     Clear all
