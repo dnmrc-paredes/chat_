@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# opencode auth (never commit)
+.opencode/supabase-auth.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
