@@ -37,18 +37,18 @@ export const SignInForm = () => {
   const handleShowPassword = () => setShowPassword((prev) => !prev)
   const onSubmit: SubmitHandler<FormValues> = async (values) => {
     const { email, password } = values
-    try {
-      const { error } = await browserClient().auth.signInWithPassword({
-        email,
-        password,
-      })
 
-      showErrors(error?.code)
+    const { error } = await browserClient().auth.signInWithPassword({
+      email,
+      password,
+    })
 
-      redirect("/home")
-    } catch (error) {
-      console.error(error)
+    if (error) {
+      showErrors(error.code)
+      return
     }
+
+    redirect("/home")
   }
 
   return (

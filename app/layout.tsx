@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, JetBrains_Mono } from "next/font/google"
 import "./globals.css"
 import { cn } from "@/lib/utils"
 import { Toaster } from "@/components/ui/sonner"
+import { Sidebar } from "@/components/Navigation/Sidebar"
 
 const jetbrainsMonoHeading = JetBrains_Mono({
   subsets: ["latin"],
@@ -43,9 +44,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         "dark",
       )}
     >
-      <body className="min-h-full flex flex-col bg-[color-background]">
+      <body className="min-h-full bg-[color-background] flex justify-center items-center">
         <Toaster />
-        {children}
+        <div className="flex justify-center items-center w-full relative">
+          <div className="flex items-center justify-center w-full max-w-[600px]">
+            {children}
+          </div>
+        </div>
       </body>
     </html>
   )

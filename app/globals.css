@@ -129,4 +129,8 @@
   html {
     @apply font-mono;
   }
+  .highlight-message {
+    outline: 2px solid color-mix(in oklch, var(--primary), transparent 40%);
+    outline-offset: 2px;
+  }
 }

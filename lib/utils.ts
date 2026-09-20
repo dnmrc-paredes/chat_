@@ -4,3 +4,21 @@ import { twMerge } from "tailwind-merge"
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
+
+export const getInitials = (name: string) =>
+  name
+    .split(" ")
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "?"
+
+export const deriveHandle = (
+  username: string | null | undefined,
+  name: string,
+  id: string,
+) =>
+  username ||
+  name.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 20) ||
+  id.slice(0, 8)

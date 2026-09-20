@@ -23,6 +23,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { browserClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { showErrors } from "@/lib/authErrors"
+import { redirect } from "next/navigation"
 
 type FormValues = {
   name: string
@@ -46,23 +47,27 @@ export const SignUpForm = () => {
   const onSubmit: SubmitHandler<FormValues> = async (values) => {
     const { email, name, password } = values
 
-    try {
-      const { error } = await browserClient().auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name,
-          },
+    const { data, error } = await browserClient().auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
         },
-      })
+      },
+    })
 
-      showErrors(error?.code)
-
-      toast("Verification code sent to your email.")
-    } catch (error) {
-      console.error(error)
+    if (error) {
+      showErrors(error.code)
+      return
     }
+
+    if (data.session) {
+      redirect("/home")
+      return
+    }
+
+    toast("Verification code sent to your email.")
   }
 
   return (
