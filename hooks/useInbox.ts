@@ -151,7 +151,21 @@ export const useInbox = () => {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "dm_messages" },
-        refresh,
+        (payload) => {
+          if (
+            payload.new.sender_id !== user.id &&
+            payload.new.conversation_id
+          ) {
+            supabase
+              .rpc("mark_messages_delivered", {
+                conv_id: payload.new.conversation_id,
+              })
+              .then(({ error }) => {
+                if (error) console.error(error)
+              })
+          }
+          refresh()
+        },
       )
       .on(
         "postgres_changes",

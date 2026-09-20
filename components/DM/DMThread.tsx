@@ -1,7 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState, type UIEvent } from "react"
-import { ArrowLeft, Loader2, SendHorizonal } from "lucide-react"
+import {
+  ArrowLeft,
+  Check,
+  CheckCheck,
+  Loader2,
+  SendHorizonal,
+} from "lucide-react"
+import type { RealtimeChannel } from "@supabase/supabase-js"
 import Link from "next/link"
 import { toast } from "sonner"
 import {
@@ -18,6 +25,10 @@ import { Bubble, BubbleContent } from "../ui/bubble"
 const PAGE_SIZE = 40
 const INITIAL_PAGE_SIZE = 30
 const MAX_LENGTH = 500
+const TYPING_EVENT = "typing"
+const TYPING_STOP_EVENT = "typing_stop"
+const TYPING_THROTTLE_MS = 2000
+const TYPING_VISIBLE_MS = 4000
 
 export type DMMessage = {
   id: string
@@ -26,6 +37,7 @@ export type DMMessage = {
   sender_name: string
   text: string
   created_at: string
+  delivered_at: string | null
 }
 
 export type DMPeer = {
@@ -40,6 +52,7 @@ type DMThreadProps = {
   currentUserId: string
   currentUserName: string
   initialMessages: DMMessage[]
+  initialPeerLastReadAt: string | null
 }
 
 const formatTime = (timestamp: string) =>
@@ -54,6 +67,7 @@ export const DMThread = ({
   currentUserId,
   currentUserName,
   initialMessages,
+  initialPeerLastReadAt,
 }: DMThreadProps) => {
   const [messages, setMessages] = useState<DMMessage[]>(initialMessages)
   const [input, setInput] = useState("")
@@ -61,58 +75,221 @@ export const DMThread = ({
   const [hasMore, setHasMore] = useState(
     initialMessages.length === INITIAL_PAGE_SIZE,
   )
+  const [typingPeer, setTypingPeer] = useState(false)
+  const [peerLastReadAt, setPeerLastReadAt] = useState<string | null>(
+    initialPeerLastReadAt,
+  )
   const containerRef = useRef<HTMLDivElement | null>(null)
   const oldestRef = useRef<DMMessage | null>(initialMessages[0] ?? null)
   const scrollDataRef = useRef({ scrollHeight: 0, scrollTop: 0 })
+  const nearBottomRef = useRef(true)
+  const typingChannelRef = useRef<RealtimeChannel | null>(null)
+  const lastTypingSentRef = useRef(0)
+  const typingClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const el = containerRef.current
     if (el) el.scrollTop = el.scrollHeight
   }, [])
 
+  useEffect(() => {
+    const el = containerRef.current
+    const lastMessage = messages[messages.length - 1]
+    if (!el || !lastMessage) return
+
+    const isOwn = lastMessage.sender_id === currentUserId
+    if (isOwn || nearBottomRef.current) {
+      el.scrollTop = el.scrollHeight
+    }
+  }, [messages, currentUserId])
+
   const markAsRead = useCallback(() => {
     browserClient()
-      .from("dm_messages")
-      .update({ is_read: true })
-      .eq("conversation_id", conversationId)
-      .neq("sender_id", currentUserId)
-      .eq("is_read", false)
+      .rpc("mark_conversation_read", { conv_id: conversationId })
       .then(({ error }) => {
         if (error) console.error(error)
       })
-  }, [conversationId, currentUserId])
+  }, [conversationId])
+
+  const markConversationDelivered = useCallback(() => {
+    browserClient()
+      .rpc("mark_messages_delivered", { conv_id: conversationId })
+      .then(({ error }) => {
+        if (error) console.error(error)
+      })
+  }, [conversationId])
 
   useEffect(() => {
     markAsRead()
   }, [markAsRead])
 
   useEffect(() => {
-    const channel = browserClient()
-      .channel(`dm:${conversationId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "dm_messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload) => {
-          const message = payload.new as DMMessage
-          setMessages((prev) =>
-            prev.some((existing) => existing.id === message.id)
-              ? prev
-              : [...prev, message],
-          )
-          if (message.sender_id !== currentUserId) markAsRead()
-        },
+    markConversationDelivered()
+  }, [markConversationDelivered])
+
+  useEffect(() => {
+    const supabase = browserClient()
+    let channel: RealtimeChannel | null = null
+    let disposed = false
+
+    const setup = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (session) await supabase.realtime.setAuth(session.access_token)
+      if (disposed) return
+
+      channel = supabase
+        .channel(`dm:${conversationId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "dm_messages",
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          (payload) => {
+            const message = payload.new as DMMessage
+            setMessages((prev) =>
+              prev.some((existing) => existing.id === message.id)
+                ? prev
+                : [...prev, message],
+            )
+            if (message.sender_id !== currentUserId) {
+              markConversationDelivered()
+              markAsRead()
+            }
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "dm_messages",
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          (payload) => {
+            const updated = payload.new as DMMessage
+            setMessages((prev) =>
+              prev.map((message) =>
+                message.id === updated.id
+                  ? { ...message, ...updated }
+                  : message,
+              ),
+            )
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "conversations",
+            filter: `id=eq.${conversationId}`,
+          },
+          (payload) => {
+            const row = payload.new as {
+              user_a: string
+              user_a_last_read_at: string | null
+              user_b_last_read_at: string | null
+            }
+            const read =
+              peer.id === row.user_a
+                ? row.user_a_last_read_at
+                : row.user_b_last_read_at
+            setPeerLastReadAt(read)
+          },
+        )
+        .subscribe()
+    }
+
+    setup()
+
+    return () => {
+      disposed = true
+      if (channel) browserClient().removeChannel(channel)
+    }
+  }, [
+    conversationId,
+    currentUserId,
+    markConversationDelivered,
+    markAsRead,
+    peer.id,
+  ])
+
+  useEffect(() => {
+    const onTyping = (payload: { user_id: string }) => {
+      if (payload.user_id === currentUserId) return
+      setTypingPeer(true)
+      if (typingClearTimerRef.current) clearTimeout(typingClearTimerRef.current)
+      typingClearTimerRef.current = setTimeout(
+        () => setTypingPeer(false),
+        TYPING_VISIBLE_MS,
       )
-      .subscribe()
+    }
+
+    const onTypingStop = (payload: { user_id: string }) => {
+      if (payload.user_id === currentUserId) return
+      setTypingPeer(false)
+      if (typingClearTimerRef.current) clearTimeout(typingClearTimerRef.current)
+    }
+
+    const channel = browserClient()
+      .channel(`dm-typing:${conversationId}`)
+      .on("broadcast", { event: TYPING_EVENT }, ({ payload }) =>
+        onTyping(payload as { user_id: string }),
+      )
+      .on("broadcast", { event: TYPING_STOP_EVENT }, ({ payload }) =>
+        onTypingStop(payload as { user_id: string }),
+      )
+
+    typingChannelRef.current = channel
+    channel.subscribe((status) => {
+      if (status === "CHANNEL_ERROR") console.error("Typing channel error")
+    })
 
     return () => {
       browserClient().removeChannel(channel)
+      typingChannelRef.current = null
+      if (typingClearTimerRef.current) clearTimeout(typingClearTimerRef.current)
     }
-  }, [conversationId, currentUserId, markAsRead])
+  }, [conversationId, currentUserId])
+
+  const sendTyping = useCallback(() => {
+    const channel = typingChannelRef.current
+    if (!channel) return
+
+    const now = Date.now()
+    if (now - lastTypingSentRef.current < TYPING_THROTTLE_MS) return
+    lastTypingSentRef.current = now
+
+    try {
+      channel.send({
+        type: "broadcast",
+        event: TYPING_EVENT,
+        payload: { user_id: currentUserId },
+      })
+    } catch (error) {
+      console.error(error)
+    }
+  }, [currentUserId])
+
+  const sendTypingStop = useCallback(() => {
+    const channel = typingChannelRef.current
+    if (!channel) return
+
+    try {
+      channel.send({
+        type: "broadcast",
+        event: TYPING_STOP_EVENT,
+        payload: { user_id: currentUserId },
+      })
+    } catch (error) {
+      console.error(error)
+    }
+  }, [currentUserId])
 
   const loadOlder = useCallback(async () => {
     const oldest = oldestRef.current
@@ -168,7 +345,10 @@ export const DMThread = ({
   }, [conversationId, hasMore, isLoadingOlder])
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
-    if (event.currentTarget.scrollTop < 32) loadOlder()
+    const el = event.currentTarget
+    nearBottomRef.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight < 120
+    if (el.scrollTop < 32) loadOlder()
   }
 
   const handleSend = async () => {
@@ -179,6 +359,7 @@ export const DMThread = ({
       return
     }
 
+    sendTypingStop()
     setInput("")
 
     let sent: DMMessage | null = null
@@ -262,6 +443,13 @@ export const DMThread = ({
 
         {messages.map((message) => {
           const isOwn = message.sender_id === currentUserId
+          const isLastMessage = message.id === messages[messages.length - 1]?.id
+          const isReadByPeer =
+            isOwn &&
+            !!peerLastReadAt &&
+            new Date(message.created_at).getTime() <=
+              new Date(peerLastReadAt).getTime()
+          const isDelivered = isOwn && !!message.delivered_at
 
           return (
             <div
@@ -277,13 +465,48 @@ export const DMThread = ({
               >
                 <BubbleContent>{message.text}</BubbleContent>
               </Bubble>
-              <span className="text-[10px] text-muted-foreground">
-                {formatTime(message.created_at)}
+              <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                <span>{formatTime(message.created_at)}</span>
+                {isOwn &&
+                  isLastMessage &&
+                  (isReadByPeer ? (
+                    <>
+                      <CheckCheck size={12} className="text-primary" />
+                      <span className="text-primary">Seen</span>
+                    </>
+                  ) : isDelivered ? (
+                    <>
+                      <CheckCheck size={12} />
+                      <span>Delivered</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check size={12} />
+                      <span>Sent</span>
+                    </>
+                  ))}
               </span>
             </div>
           )
         })}
       </div>
+
+      {typingPeer && (
+        <div className="flex items-center gap-1.5 border-t border-input px-4 py-1.5 text-xs text-muted-foreground">
+          <span className="flex items-center gap-0.5">
+            <span className="size-1 animate-bounce rounded-full bg-current" />
+            <span
+              className="size-1 animate-bounce rounded-full bg-current"
+              style={{ animationDelay: "150ms" }}
+            />
+            <span
+              className="size-1 animate-bounce rounded-full bg-current"
+              style={{ animationDelay: "300ms" }}
+            />
+          </span>
+          {peer.name} is typing
+        </div>
+      )}
 
       <form
         className="w-full p-4 pt-0"
@@ -296,7 +519,13 @@ export const DMThread = ({
           <InputGroupInput
             value={input}
             placeholder={`Message @${handle}`}
-            onChange={(event) => setInput(event.target.value)}
+            onChange={(event) => {
+              setInput(event.target.value)
+              if (event.target.value.trim()) sendTyping()
+            }}
+            onBlur={() => {
+              if (input.trim()) sendTypingStop()
+            }}
           />
           <InputGroupAddon align="inline-end">
             <InputGroupButton type="submit" variant="secondary">

@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { Geist, Geist_Mono, JetBrains_Mono } from "next/font/google"
 import "./globals.css"
 import { cn } from "@/lib/utils"
+import { OnlinePresenceProvider } from "@/components/Providers/Online"
 import { Toaster } from "@/components/ui/sonner"
 
 const jetbrainsMonoHeading = JetBrains_Mono({
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full bg-[color-background] flex justify-center items-center">
         <Toaster />
+        <OnlinePresenceProvider />
         <div className="flex justify-center items-center w-full relative">
           <div className="flex items-center justify-center w-full max-w-[600px]">
             {children}
