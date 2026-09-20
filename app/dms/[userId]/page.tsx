@@ -28,11 +28,16 @@ export default async function DMPage({
 
   const [userA, userB] = conversationPair(user.id, userId)
 
-  let conversation: { id: string } | null = null
+  let conversation: {
+    id: string
+    user_a: string
+    user_a_last_read_at?: string | null
+    user_b_last_read_at?: string | null
+  } | null = null
 
   const { data: existing } = await supabase
     .from("conversations")
-    .select("id")
+    .select("id, user_a, user_a_last_read_at, user_b_last_read_at")
     .eq("user_a", userA)
     .eq("user_b", userB)
     .maybeSingle()
@@ -40,18 +45,18 @@ export default async function DMPage({
   conversation = existing
 
   if (!conversation) {
-    const { data: inserted, error } = await supabase
+    const { data: inserted } = await supabase
       .from("conversations")
       .insert({ user_a: userA, user_b: userB })
-      .select("id")
+      .select("id, user_a, user_a_last_read_at, user_b_last_read_at")
       .maybeSingle()
 
     if (inserted) {
       conversation = inserted
-    } else if (error?.code === "23505") {
+    } else {
       const { data: raced } = await supabase
         .from("conversations")
-        .select("id")
+        .select("id, user_a, user_a_last_read_at, user_b_last_read_at")
         .eq("user_a", userA)
         .eq("user_b", userB)
         .maybeSingle()
@@ -74,6 +79,11 @@ export default async function DMPage({
 
   const initialMessages = ((raw as DMMessage[] | null) ?? []).reverse()
 
+  const peerLastReadAt =
+    peer.id === conversation.user_a
+      ? conversation.user_a_last_read_at
+      : conversation.user_b_last_read_at
+
   return (
     <DMThread
       conversationId={conversation.id}
@@ -91,6 +101,7 @@ export default async function DMPage({
         "Guest"
       }
       initialMessages={initialMessages}
+      initialPeerLastReadAt={peerLastReadAt ?? null}
     />
   )
 }

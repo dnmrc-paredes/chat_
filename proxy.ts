@@ -15,7 +15,11 @@ export async function proxy(request: NextRequest) {
       url.pathname = "/sign-in"
       return NextResponse.redirect(url)
     }
-  } else if (url.pathname === "/sign-in" || url.pathname === "/sign-up") {
+  } else if (
+    url.pathname === "/sign-in" ||
+    url.pathname === "/sign-up" ||
+    url.pathname === "/"
+  ) {
     url.pathname = "/home"
     return NextResponse.redirect(url)
   }
