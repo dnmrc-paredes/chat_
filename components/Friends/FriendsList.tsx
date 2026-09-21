@@ -12,6 +12,7 @@ import { cn, deriveHandle, formatDate, getInitials } from "@/lib/utils"
 import { PresenceDot } from "../Presence/PresenceDot"
 import { Avatar, AvatarFallback } from "../ui/avatar"
 import { Button, buttonVariants } from "../ui/button"
+import { Dialog, DialogClose, DialogContent } from "../ui/dialog"
 
 export type Friend = {
   id: string
@@ -222,19 +223,13 @@ export const FriendsList = ({
       )}
 
       {selected && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Actions for ${selected.name}`}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setSelected(null)}
+        <Dialog
+          open={!!selected}
+          onOpenChange={(open) => {
+            if (!open) setSelected(null)
+          }}
         >
-          <div
-            className="w-full max-w-sm rounded-md border border-border bg-background p-5 shadow-lg"
-            onClick={(event) => {
-              event.stopPropagation()
-            }}
-          >
+          <DialogContent aria-label={`Actions for ${selected.name}`}>
             <div className="flex items-center justify-between">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="relative shrink-0">
@@ -259,14 +254,12 @@ export const FriendsList = ({
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
+              <DialogClose
                 aria-label="Close"
-                onClick={() => setSelected(null)}
                 className="cursor-pointer rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <X size={16} />
-              </button>
+              </DialogClose>
             </div>
 
             <div className="mt-3 flex flex-col gap-1 text-xs text-muted-foreground">
@@ -318,8 +311,8 @@ export const FriendsList = ({
                 Block
               </Button>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )
