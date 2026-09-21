@@ -143,17 +143,21 @@ export const ProfileSettings = ({
   const handle = deriveHandle(info.username || null, info.name, userId)
 
   return (
-    <div className="flex w-full items-center justify-center p-6">
-      <div className="flex w-full max-w-md flex-col items-center gap-5 rounded-md border-2 border-input p-8">
-        <Avatar className="size-24">
-          <AvatarFallback className="text-2xl">
-            {getInitials(info.name)}
-          </AvatarFallback>
-        </Avatar>
+    <div className="flex h-dvh w-full flex-col gap-4 p-4">
+      <h1 className="text-xl font-semibold">Profile</h1>
 
-        <div className="flex flex-col items-center gap-1 text-center">
-          <h1 className="text-xl font-semibold">{info.name}</h1>
-          <p className="text-sm text-muted-foreground">@{handle}</p>
+      <div className="flex w-full flex-col gap-5 rounded-md border-2 border-input p-4">
+        <div className="flex items-center gap-4">
+          <Avatar className="size-16">
+            <AvatarFallback className="text-xl">
+              {getInitials(info.name)}
+            </AvatarFallback>
+          </Avatar>
+
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="truncate text-lg font-semibold">{info.name}</span>
+            <p className="truncate text-sm text-muted-foreground">@{handle}</p>
+          </div>
         </div>
 
         <dl className="flex w-full flex-col gap-2 text-sm">
