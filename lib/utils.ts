@@ -34,3 +34,10 @@ export const deriveHandle = (
 
 export const conversationPair = (a: string, b: string): [string, string] =>
   a < b ? [a, b] : [b, a]
+
+export const formatDate = (value: string) =>
+  new Date(value).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  })

@@ -2,7 +2,7 @@
 
 import type { Friendship } from "@/hooks/useLobby"
 import { useRelations } from "@/hooks/useRelations"
-import { deriveHandle, getInitials } from "@/lib/utils"
+import { deriveHandle, formatDate, getInitials } from "@/lib/utils"
 import Link from "next/link"
 import { Avatar, AvatarFallback } from "../ui/avatar"
 import { Button, buttonVariants } from "../ui/button"
@@ -20,13 +20,6 @@ type ProfileViewProps = {
   initialFriendship: Friendship | null
   initialBlocked: boolean
 }
-
-const formatDate = (value: string) =>
-  new Date(value).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  })
 
 export const ProfileView = ({
   profile,
@@ -48,23 +41,25 @@ export const ProfileView = ({
   const handle = deriveHandle(profile.username, profile.name, profile.id)
 
   return (
-    <div className="flex w-full max-w-md flex-col items-center gap-5 rounded-md border-2 border-input p-8">
-      <Avatar className="size-24">
-        <AvatarFallback className="text-2xl">
-          {getInitials(profile.name)}
-        </AvatarFallback>
-      </Avatar>
+    <div className="flex w-full flex-col gap-5 rounded-md border-2 border-input p-4">
+      <div className="flex items-center gap-4">
+        <Avatar className="size-16">
+          <AvatarFallback className="text-xl">
+            {getInitials(profile.name)}
+          </AvatarFallback>
+        </Avatar>
 
-      <div className="flex flex-col items-center gap-1 text-center">
-        <h1 className="text-xl font-semibold">{profile.name}</h1>
-        <p className="text-sm text-muted-foreground">@{handle}</p>
+        <div className="flex min-w-0 flex-col gap-1">
+          <h1 className="truncate text-lg font-semibold">{profile.name}</h1>
+          <p className="truncate text-sm text-muted-foreground">@{handle}</p>
+        </div>
+
+        {isSelf && (
+          <span className="ml-auto shrink-0 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+            This is you
+          </span>
+        )}
       </div>
-
-      {isSelf && (
-        <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-          This is you
-        </span>
-      )}
 
       <dl className="flex w-full flex-col gap-2 rounded-md bg-muted p-4 text-sm">
         <div className="flex items-center justify-between gap-2">
@@ -75,51 +70,70 @@ export const ProfileView = ({
 
       {!isSelf &&
         (status === "accepted" ? (
-          <div className="flex flex-col items-center gap-3">
+          <div className="flex flex-col gap-3">
             {friendsSince && (
               <p className="text-sm text-muted-foreground">
                 Friends since {formatDate(friendsSince)}
               </p>
             )}
-            <div className="flex flex-wrap justify-center gap-2">
-              <Link href={`/dms/${profile.id}`} className={buttonVariants()}>
+            <div className="flex w-full flex-col gap-2">
+              <Link
+                href={`/dms/${profile.id}`}
+                className={buttonVariants({ className: "w-full" })}
+              >
                 Message
               </Link>
-              <Button variant="outline" onClick={removeFriend}>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={removeFriend}
+              >
                 Remove Friend
               </Button>
               {isBlocked ? (
-                <Button variant="outline" onClick={unblock}>
+                <Button variant="outline" className="w-full" onClick={unblock}>
                   Unblock
                 </Button>
               ) : (
-                <Button variant="destructive" onClick={block}>
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={block}
+                >
                   Block
                 </Button>
               )}
             </div>
           </div>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex w-full flex-col gap-2">
             {status === "incoming" ? (
-              <Button variant="secondary" onClick={acceptFriend}>
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={acceptFriend}
+              >
                 Accept Request
               </Button>
             ) : status === "outgoing" ? (
-              <Button variant="secondary" disabled>
+              <Button variant="secondary" className="w-full" disabled>
                 Request Sent
               </Button>
             ) : (
-              <Button variant="secondary" onClick={addFriend}>
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={addFriend}
+              >
                 Add Friend
               </Button>
             )}
             {isBlocked ? (
-              <Button variant="outline" onClick={unblock}>
+              <Button variant="outline" className="w-full" onClick={unblock}>
                 Unblock
               </Button>
             ) : (
-              <Button variant="destructive" onClick={block}>
+              <Button variant="destructive" className="w-full" onClick={block}>
                 Block
               </Button>
             )}

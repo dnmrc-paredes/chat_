@@ -41,7 +41,7 @@ export default async function ProfilePage({
     .maybeSingle()
 
   return (
-    <div className="flex w-full items-center justify-center p-6">
+    <div className="flex h-dvh w-full flex-col gap-4 p-4">
       <ProfileView
         key={profile.id}
         profile={profile as Profile}
