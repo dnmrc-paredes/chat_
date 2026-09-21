@@ -3,8 +3,10 @@ import { Geist, Geist_Mono, JetBrains_Mono } from "next/font/google"
 import "./globals.css"
 import { cn } from "@/lib/utils"
 import { BackHeader } from "@/components/Navigation/BackHeader"
+import { TopNav } from "@/components/Navigation/TopNav"
 import { NavigationProvider } from "@/components/Providers/Navigation"
 import { OnlinePresenceProvider } from "@/components/Providers/Online"
+import { ThemeProvider } from "@/components/Providers/Theme"
 import { Toaster } from "@/components/ui/sonner"
 
 const jetbrainsMonoHeading = JetBrains_Mono({
@@ -37,26 +39,34 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={cn(
         "h-full",
         "antialiased",
         geistSans.variable,
         geistMono.variable,
         jetbrainsMonoHeading.variable,
-        "dark",
       )}
     >
       <body className="min-h-full bg-[color-background] flex justify-center items-center">
-        <Toaster />
-        <OnlinePresenceProvider />
-        <div className="flex justify-center items-center w-full relative">
-          <div className="flex w-full max-w-[600px] flex-col">
-            <NavigationProvider>
-              <BackHeader />
-              {children}
-            </NavigationProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableColorScheme
+          disableTransitionOnChange
+        >
+          <Toaster />
+          <OnlinePresenceProvider />
+          <div className="flex justify-center items-center w-full relative">
+            <div className="flex w-full max-w-[600px] flex-col">
+              <NavigationProvider>
+                <TopNav />
+                <BackHeader />
+                {children}
+              </NavigationProvider>
+            </div>
           </div>
-        </div>
+        </ThemeProvider>
       </body>
     </html>
   )

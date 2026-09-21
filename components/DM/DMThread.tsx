@@ -483,7 +483,9 @@ export const DMThread = ({
                 align={isOwn ? "end" : "start"}
                 variant={isOwn ? "default" : "secondary"}
               >
-                <BubbleContent>{message.text}</BubbleContent>
+                <BubbleContent className="max-w-[initial]">
+                  {message.text}
+                </BubbleContent>
               </Bubble>
               <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                 <span>{formatTime(message.created_at)}</span>
