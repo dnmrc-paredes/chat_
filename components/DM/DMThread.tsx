@@ -1,6 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState, type UIEvent } from "react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type UIEvent,
+} from "react"
 import {
   ArrowLeft,
   Check,
@@ -89,6 +96,22 @@ export const DMThread = ({
   const typingChannelRef = useRef<RealtimeChannel | null>(null)
   const lastTypingSentRef = useRef(0)
   const typingClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const restoreScrollRef = useRef(false)
+  const scrollToBottomRef = useRef(false)
+
+  useLayoutEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    if (restoreScrollRef.current) {
+      restoreScrollRef.current = false
+      container.scrollTop =
+        scrollDataRef.current.scrollTop +
+        (container.scrollHeight - scrollDataRef.current.scrollHeight)
+    } else if (scrollToBottomRef.current) {
+      scrollToBottomRef.current = false
+      container.scrollTop = container.scrollHeight
+    }
+  }, [messages])
 
   useEffect(() => {
     const el = containerRef.current
@@ -332,13 +355,7 @@ export const DMThread = ({
 
         if ((data as DMMessage[]).length < PAGE_SIZE) setHasMore(false)
 
-        requestAnimationFrame(() => {
-          const container = containerRef.current
-          if (!container) return
-          const delta =
-            container.scrollHeight - scrollDataRef.current.scrollHeight
-          container.scrollTop = scrollDataRef.current.scrollTop + delta
-        })
+        restoreScrollRef.current = true
       }
     } catch (error) {
       console.error(error)
@@ -396,10 +413,7 @@ export const DMThread = ({
       prev.some((existing) => existing.id === sent.id) ? prev : [...prev, sent],
     )
 
-    requestAnimationFrame(() => {
-      const el = containerRef.current
-      if (el) el.scrollTop = el.scrollHeight
-    })
+    scrollToBottomRef.current = true
   }
 
   const handle = deriveHandle(peer.username, peer.name, peer.id)
