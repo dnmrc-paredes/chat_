@@ -5,7 +5,9 @@ import Link from "next/link"
 import { useEffect } from "react"
 import { createPortal } from "react-dom"
 import type { InboxConversation } from "@/hooks/useInbox"
+import { useOnlineUsers } from "@/hooks/useOnline"
 import { getInitials } from "@/lib/utils"
+import { PresenceDot } from "../Presence/PresenceDot"
 import { Avatar, AvatarFallback } from "../ui/avatar"
 
 const formatTime = (timestamp: string) =>
@@ -29,6 +31,8 @@ export const MessagesDrawer = ({
   conversations,
   isLoading,
 }: MessagesDrawerProps) => {
+  const onlineIds = useOnlineUsers()
+
   useEffect(() => {
     if (!isOpen) return
 
@@ -84,11 +88,14 @@ export const MessagesDrawer = ({
                 onClick={() => onOpenConversation(conversation.conversationId)}
                 className="flex items-center gap-3 rounded-md p-2 hover:bg-muted"
               >
-                <Avatar className="size-9">
-                  <AvatarFallback>
-                    {getInitials(conversation.peerName)}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="relative shrink-0">
+                  <Avatar className="size-9">
+                    <AvatarFallback>
+                      {getInitials(conversation.peerName)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <PresenceDot isOnline={onlineIds.has(conversation.peerId)} />
+                </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm font-medium">

@@ -21,8 +21,14 @@ type ActivePopover = {
 }
 
 export const MessageList = () => {
-  const { messages, user, isBlockedByMe, focusMessageId, focusNonce } =
-    useLobbyChannel()
+  const {
+    messages,
+    user,
+    isBlockedByMe,
+    blockers,
+    focusMessageId,
+    focusNonce,
+  } = useLobbyChannel()
   const [activePopover, setActivePopover] = useState<ActivePopover | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
 
@@ -46,7 +52,9 @@ export const MessageList = () => {
   }, [focusMessageId, focusNonce])
 
   const visibleMessages = messages.filter(
-    (message) => !isBlockedByMe(message.sender_id),
+    (message) =>
+      !isBlockedByMe(message.sender_id) &&
+      !blockers.includes(message.sender_id),
   )
   const activeMessage = activePopover
     ? visibleMessages.find((m) => m.id === activePopover.messageId)

@@ -96,6 +96,7 @@ export const useLobby = (user: User | null) => {
   const [connectedUsers, setConnectedUsers] = useState<ConnectedUser[]>([])
   const [friendships, setFriendships] = useState<Friendship[]>([])
   const [blocks, setBlocks] = useState<Block[]>([])
+  const [blockers, setBlockers] = useState<string[]>([])
   const [mentions, setMentions] = useState<Mention[]>([])
   const [unreadMentions, setUnreadMentions] = useState(0)
   const [isConnected, setIsConnected] = useState(false)
@@ -103,6 +104,7 @@ export const useLobby = (user: User | null) => {
   const [focusMessageId, setFocusMessageId] = useState<string | null>(null)
   const [focusNonce, setFocusNonce] = useState(0)
   const channelRef = useRef<RealtimeChannel | null>(null)
+  const hiddenSendersRef = useRef(new Set<string>())
 
   const handlePresenceSync = useCallback((channel: RealtimeChannel) => {
     const state =
@@ -146,11 +148,32 @@ export const useLobby = (user: User | null) => {
         }
         setBlocks(data as Block[])
       })
+
+    supabase.rpc("get_my_blockers").then(({ data, error }) => {
+      if (error) {
+        console.error(error)
+        return
+      }
+      setBlockers(
+        ((data as { user_id: string }[] | null) ?? []).map(
+          (row) => row.user_id,
+        ),
+      )
+    })
   }, [user])
 
   useEffect(() => {
     refreshRelations()
   }, [refreshRelations])
+
+  useEffect(() => {
+    const hidden = new Set<string>()
+
+    for (const block of blocks) hidden.add(block.blocked_user_id)
+    for (const blocker of blockers) hidden.add(blocker)
+
+    hiddenSendersRef.current = hidden
+  }, [blocks, blockers])
 
   useEffect(() => {
     const channel = browserClient()
@@ -159,6 +182,9 @@ export const useLobby = (user: User | null) => {
       })
       .on("broadcast", { event: MESSAGE_EVENT }, ({ payload }) => {
         const message = payload as ChatMessage
+
+        if (hiddenSendersRef.current.has(message.sender_id)) return
+
         setMessages((prev) =>
           prev.some((existing) => existing.id === message.id)
             ? prev
@@ -205,10 +231,13 @@ export const useLobby = (user: User | null) => {
         }
       })
       .on("broadcast", { event: USER_BLOCKED_EVENT }, ({ payload }) => {
-        const { target_id } = payload as UserBlockedPayload
+        const { target_id, sender_id } = payload as UserBlockedPayload
 
         if (target_id === user?.id) {
           toast("You have been blocked by another user.")
+          setBlockers((prev) =>
+            prev.includes(sender_id) ? prev : [...prev, sender_id],
+          )
         }
       })
       .on("presence", { event: "sync" }, () => handlePresenceSync(channel))
@@ -368,6 +397,28 @@ export const useLobby = (user: User | null) => {
         { user_id: user.id, blocked_user_id: targetId },
       ])
 
+      const { error: friendshipError } = await browserClient()
+        .from("friendships")
+        .delete()
+        .or(
+          `and(user_a.eq.${user.id},user_b.eq.${targetId}),and(user_a.eq.${targetId},user_b.eq.${user.id})`,
+        )
+
+      if (friendshipError) {
+        console.error(friendshipError)
+      }
+
+      setFriendships((prev) =>
+        prev.filter(
+          (friendship) =>
+            !(
+              (friendship.user_a === targetId &&
+                friendship.user_b === user.id) ||
+              (friendship.user_a === user.id && friendship.user_b === targetId)
+            ),
+        ),
+      )
+
       channelRef.current?.send({
         type: "broadcast",
         event: USER_BLOCKED_EVENT,
@@ -454,6 +505,7 @@ export const useLobby = (user: User | null) => {
     connectedUsers,
     friendships,
     blocks,
+    blockers,
     mentions,
     unreadMentions,
     markMentionsRead,
