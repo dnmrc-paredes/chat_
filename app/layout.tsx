@@ -2,6 +2,8 @@ import type { Metadata } from "next"
 import { Geist, Geist_Mono, JetBrains_Mono } from "next/font/google"
 import "./globals.css"
 import { cn } from "@/lib/utils"
+import { BackHeader } from "@/components/Navigation/BackHeader"
+import { NavigationProvider } from "@/components/Providers/Navigation"
 import { OnlinePresenceProvider } from "@/components/Providers/Online"
 import { Toaster } from "@/components/ui/sonner"
 
@@ -48,8 +50,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Toaster />
         <OnlinePresenceProvider />
         <div className="flex justify-center items-center w-full relative">
-          <div className="flex items-center justify-center w-full max-w-[600px]">
-            {children}
+          <div className="flex w-full max-w-[600px] flex-col">
+            <NavigationProvider>
+              <BackHeader />
+              {children}
+            </NavigationProvider>
           </div>
         </div>
       </body>
