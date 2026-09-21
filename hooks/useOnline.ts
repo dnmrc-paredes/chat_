@@ -4,23 +4,24 @@ import type {
   RealtimeChannel,
   RealtimePresenceState,
 } from "@supabase/supabase-js"
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useSyncExternalStore } from "react"
 import { useSession } from "@/hooks/useAuth"
 import { browserClient } from "@/lib/supabase/client"
 
 const CHANNEL = "presence:online"
 
 type PresencePayload = { user_id: string }
-type Listener = (ids: Set<string>) => void
+type Listener = () => void
 
 let channel: RealtimeChannel | null = null
 let userId: string | null = null
 let joined = false
 let onlineIds = new Set<string>()
+const emptySet = new Set<string>()
 const listeners = new Set<Listener>()
 
 const notify = () => {
-  for (const listener of listeners) listener(onlineIds)
+  for (const listener of listeners) listener()
 }
 
 const setup = () => {
@@ -68,23 +69,19 @@ const trackUser = (id: string | null) => {
 export const useOnlineUsers = () => {
   const { user } = useSession()
   const id = user?.id ?? null
-  const [ids, setIds] = useState<Set<string>>(new Set())
-
-  const handleUpdate = useCallback((next: Set<string>) => {
-    setIds(new Set(next))
-  }, [])
 
   useEffect(() => {
     trackUser(id)
-    listeners.add(handleUpdate)
+  }, [id])
 
-    const frame = requestAnimationFrame(() => handleUpdate(onlineIds))
-
-    return () => {
-      cancelAnimationFrame(frame)
-      listeners.delete(handleUpdate)
-    }
-  }, [id, handleUpdate])
-
-  return ids
+  return useSyncExternalStore(
+    (onStoreChange) => {
+      listeners.add(onStoreChange)
+      return () => {
+        listeners.delete(onStoreChange)
+      }
+    },
+    () => onlineIds,
+    () => emptySet,
+  )
 }

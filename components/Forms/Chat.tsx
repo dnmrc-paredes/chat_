@@ -7,23 +7,24 @@ import {
   InputGroupButton,
 } from "../ui/input-group"
 import { SendHorizonal } from "lucide-react"
-import { type SubmitEvent, useEffect, useState } from "react"
+import { type SubmitEvent, useSyncExternalStore } from "react"
 import { toast } from "sonner"
 import { useLobbyChannel } from "@/components/Providers/Lobby"
 import { cn } from "@/lib/utils"
 
 const MAX_LENGTH = 500
 
+const emptySubscribe = () => () => {}
+const hydratedSnapshot = () => true
+
 export const ChatForm = () => {
   const { inputText, setInputText, sendMessage, isConnected } =
     useLobbyChannel()
-  const [isHydrated, setIsHydrated] = useState(false)
-
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => setIsHydrated(true))
-
-    return () => cancelAnimationFrame(frame)
-  }, [])
+  const isHydrated = useSyncExternalStore(
+    emptySubscribe,
+    hydratedSnapshot,
+    () => false,
+  )
 
   const length = inputText.trim().length
   const isOverLimit = length > MAX_LENGTH

@@ -79,7 +79,7 @@ export const Sidebar = () => {
 
   return (
     <div className="w-full flex relative items-center justify-center">
-      <ul className="flex items-center justify-center gap-4">
+      <ul className="flex flex-wrap items-center justify-center gap-4">
         {user && (
           <li>
             <Link
