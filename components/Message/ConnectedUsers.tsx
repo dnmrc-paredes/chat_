@@ -17,7 +17,8 @@ export const ConnectedUsers = () => {
   const { connectedUsers } = useLobbyChannel()
   const shown = connectedUsers.slice(0, MAX_AVATARS)
   const total = connectedUsers.length
-  const overflow = total > MAX_AVATARS ? compactCount(Math.floor(total / 10) * 10) : ""
+  const overflow =
+    total > MAX_AVATARS ? compactCount(Math.floor(total / 10) * 10) : ""
 
   return (
     <div className="flex items-center justify-between gap-2 border-2 border-input rounded-sm px-3 py-2">

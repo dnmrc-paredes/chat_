@@ -12,6 +12,7 @@ import { cn, getInitials } from "@/lib/utils"
 import { useLobbyChannel } from "../Providers/Lobby"
 import { Avatar, AvatarFallback } from "../ui/avatar"
 import { Button } from "../ui/button"
+import { ThemeToggle } from "./ThemeToggle"
 import { MessagesDrawer } from "./MessagesDrawer"
 
 const navigations = [
@@ -143,6 +144,9 @@ export const Sidebar = () => {
               </span>
             )}
           </button>
+        </li>
+        <li>
+          <ThemeToggle />
         </li>
         <li>
           <button
