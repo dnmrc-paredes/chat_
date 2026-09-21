@@ -16,7 +16,9 @@ import {
   FileText,
   Loader2,
   Paperclip,
+  Pencil,
   SendHorizonal,
+  Trash2,
   X,
 } from "lucide-react"
 import type { RealtimeChannel } from "@supabase/supabase-js"
@@ -45,6 +47,7 @@ import { Bubble, BubbleContent } from "../ui/bubble"
 const PAGE_SIZE = 40
 const INITIAL_PAGE_SIZE = 30
 const MAX_LENGTH = 500
+const EDIT_WINDOW_MS = 5 * 60 * 1000
 const TYPING_EVENT = "typing"
 const TYPING_STOP_EVENT = "typing_stop"
 const TYPING_THROTTLE_MS = 2000
@@ -58,6 +61,8 @@ export type DMMessage = {
   text: string
   created_at: string
   delivered_at: string | null
+  edited_at: string | null
+  deleted_at: string | null
   attachment_path: string | null
   attachment_name: string | null
   attachment_type: string | null
@@ -161,6 +166,9 @@ const AttachmentView = ({
   )
 }
 
+const isWithinEditWindow = (createdAt: string) =>
+  Date.now() - new Date(createdAt).getTime() <= EDIT_WINDOW_MS
+
 export const DMThread = ({
   conversationId,
   peer,
@@ -188,6 +196,7 @@ export const DMThread = ({
     previewUrl: string
   } | null>(null)
   const [isUploading, setIsUploading] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [viewer, setViewer] = useState<{ url: string; name: string } | null>(
     null,
   )
@@ -533,6 +542,60 @@ export const DMThread = ({
     }
   }
 
+  const startEditing = (message: DMMessage) => {
+    if (!message.deleted_at && isWithinEditWindow(message.created_at)) {
+      setEditingId(message.id)
+      setInput(message.text)
+    }
+  }
+
+  const cancelEditing = () => {
+    setEditingId(null)
+    setInput("")
+  }
+
+  const deleteMessage = async (message: DMMessage) => {
+    const { error } = await browserClient()
+      .from("dm_messages")
+      .update({
+        deleted_at: new Date().toISOString(),
+        text: "",
+        attachment_path: null,
+        attachment_name: null,
+        attachment_type: null,
+      })
+      .eq("id", message.id)
+
+    if (error) {
+      console.error(error)
+      toast("Failed to delete message.")
+      return
+    }
+
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === message.id
+          ? {
+              ...m,
+              deleted_at: new Date().toISOString(),
+              text: "",
+              attachment_path: null,
+              attachment_name: null,
+              attachment_type: null,
+            }
+          : m,
+      ),
+    )
+
+    if (message.attachment_path) {
+      deleteAttachment(message.attachment_path).catch((err) =>
+        console.error(err),
+      )
+    }
+
+    if (editingId === message.id) setEditingId(null)
+  }
+
   const handleSend = async () => {
     const text = input.trim()
     const attachment = pendingAttachment
@@ -545,6 +608,44 @@ export const DMThread = ({
     if (isUploading) return
 
     sendTypingStop()
+
+    if (editingId) {
+      const target = messages.find((message) => message.id === editingId)
+      if (
+        !target ||
+        target.sender_id !== currentUserId ||
+        !isWithinEditWindow(target.created_at)
+      ) {
+        toast("Message can no longer be edited.")
+        setEditingId(null)
+        setInput("")
+        return
+      }
+      if (!text) return
+
+      const { error } = await browserClient()
+        .from("dm_messages")
+        .update({ text, edited_at: new Date().toISOString() })
+        .eq("id", editingId)
+
+      if (error) {
+        console.error(error)
+        toast("Failed to edit message.")
+        return
+      }
+
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === editingId
+            ? { ...message, text, edited_at: new Date().toISOString() }
+            : message,
+        ),
+      )
+      setEditingId(null)
+      setInput("")
+      return
+    }
+
     setInput("")
 
     let sent: DMMessage | null = null
@@ -653,54 +754,89 @@ export const DMThread = ({
             new Date(message.created_at).getTime() <=
               new Date(peerLastReadAt).getTime()
           const isDelivered = isOwn && !!message.delivered_at
+          const isDeleted = !!message.deleted_at
+          const canEdit =
+            isOwn && !isDeleted && isWithinEditWindow(message.created_at)
+          const attachment =
+            message.attachment_path &&
+            message.attachment_name &&
+            message.attachment_type
+              ? {
+                  path: message.attachment_path,
+                  name: message.attachment_name,
+                  type: message.attachment_type,
+                }
+              : null
 
           return (
             <div
               key={message.id}
               className={cn(
-                "flex max-w-[80%] flex-col gap-1",
+                "group/bubble flex max-w-[80%] flex-col gap-1",
                 isOwn ? "items-end self-end" : "items-start self-start",
               )}
             >
+              {isOwn && !isDeleted && (
+                <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover/bubble:opacity-100">
+                  {canEdit && (
+                    <button
+                      type="button"
+                      aria-label="Edit message"
+                      onClick={() => startEditing(message)}
+                      className="flex size-6 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    aria-label="Delete message"
+                    onClick={() => deleteMessage(message)}
+                    className="flex size-6 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-destructive"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              )}
+
               <Bubble
                 align={isOwn ? "end" : "start"}
                 variant={isOwn ? "default" : "secondary"}
               >
-                {(() => {
-                  const attachment =
-                    message.attachment_path &&
-                    message.attachment_name &&
-                    message.attachment_type
-                      ? {
-                          path: message.attachment_path,
-                          name: message.attachment_name,
-                          type: message.attachment_type,
-                        }
-                      : null
-
-                  return (
-                    <BubbleContent
-                      className={cn(
-                        "max-w-[initial]",
-                        attachment && "overflow-hidden p-0",
-                      )}
-                    >
-                      {attachment && (
-                        <AttachmentView
-                          attachment={attachment}
-                          onOpen={(url, name) => setViewer({ url, name })}
-                        />
-                      )}
-                      {message.text.trim() && (
-                        <span
-                          className={cn("block", attachment && "px-3 py-2")}
-                        >
-                          {message.text}
-                        </span>
-                      )}
-                    </BubbleContent>
-                  )
-                })()}
+                {isDeleted ? (
+                  <BubbleContent className="max-w-[initial] italic text-muted-foreground">
+                    Message unsent
+                  </BubbleContent>
+                ) : (
+                  <BubbleContent
+                    className={cn(
+                      "max-w-[initial]",
+                      attachment && "overflow-hidden p-0",
+                    )}
+                  >
+                    {message.edited_at && (
+                      <span
+                        className={cn(
+                          "block text-[10px] uppercase tracking-wide opacity-70",
+                          attachment && "px-3 pb-0.5 pt-2",
+                        )}
+                      >
+                        edited
+                      </span>
+                    )}
+                    {attachment && (
+                      <AttachmentView
+                        attachment={attachment}
+                        onOpen={(url, name) => setViewer({ url, name })}
+                      />
+                    )}
+                    {message.text.trim() && (
+                      <span className={cn("block", attachment && "px-3 py-2")}>
+                        {message.text}
+                      </span>
+                    )}
+                  </BubbleContent>
+                )}
               </Bubble>
               <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                 <span>{formatTime(message.created_at)}</span>
@@ -780,13 +916,31 @@ export const DMThread = ({
             </button>
           </div>
         )}
+        {editingId && (
+          <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+            <Pencil className="size-3.5" />
+            <span>
+              Editing message
+              {!isWithinEditWindow(
+                messages.find((m) => m.id === editingId)?.created_at ?? "",
+              ) && " (window expired)"}
+            </span>
+            <button
+              type="button"
+              onClick={cancelEditing}
+              className="ml-auto cursor-pointer rounded px-1.5 py-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
         <InputGroup>
           <InputGroupAddon align="inline-start">
             <InputGroupButton
               type="button"
               variant="ghost"
               aria-label="Attach a file"
-              disabled={isUploading || !!pendingAttachment}
+              disabled={isUploading || !!pendingAttachment || !!editingId}
               onClick={() => attachInputRef.current?.click()}
             >
               <Paperclip className="size-4" />
@@ -800,7 +954,9 @@ export const DMThread = ({
           </InputGroupAddon>
           <InputGroupInput
             value={input}
-            placeholder={`Message @${handle}`}
+            placeholder={
+              editingId ? "Edit your message..." : `Message @${handle}`
+            }
             onChange={(event) => {
               setInput(event.target.value)
               if (event.target.value.trim()) sendTyping()
