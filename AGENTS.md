@@ -11,3 +11,4 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 # Workflow
 
 - Final verification order: `npx tsc --noEmit` → `npm run lint` (eslint + prettier formatting) → `npm run build`. Always run `npm run lint` before finishing work so files stay formatted.
+- Commits: when the user says "commit the changes" (or similar), always include a changelog in the commit message — a bulleted body listing each concrete change (behavior, files, and rationale where relevant), mirroring the style of recent commits like `b805d3f`. Use `feat:`/`fix:`/`chore:` etc. prefix for the summary line.
