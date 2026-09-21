@@ -24,7 +24,7 @@ import { browserClient } from "@/lib/supabase/client"
 import { slugify } from "@/lib/utils"
 import { toast } from "sonner"
 import { showErrors } from "@/lib/authErrors"
-import { redirect } from "next/navigation"
+import { useRouter } from "next/navigation"
 
 type FormValues = {
   name: string
@@ -42,7 +42,8 @@ const pickAvailableUsername = async (baseUsername: string) => {
       { desired: candidate },
     )
 
-    if (error || available) return candidate
+    if (error) return undefined
+    if (available) return candidate
     candidate = `${baseUsername}${Math.random().toString(36).slice(2, 6)}`
   }
 
@@ -50,10 +51,11 @@ const pickAvailableUsername = async (baseUsername: string) => {
 }
 
 export const SignUpForm = () => {
+  const router = useRouter()
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(SignUpSchema),
   })
@@ -62,31 +64,36 @@ export const SignUpForm = () => {
   const handleShowPassword = () => setShowPassword((prev) => !prev)
 
   const onSubmit: SubmitHandler<FormValues> = async (values) => {
-    const { email, name, password } = values
-    const baseUsername = slugify(name)
-    const username = baseUsername
-      ? await pickAvailableUsername(baseUsername)
-      : undefined
+    try {
+      const { email, name, password } = values
+      const baseUsername = slugify(name)
+      const username = baseUsername
+        ? await pickAvailableUsername(baseUsername)
+        : undefined
 
-    const { data, error } = await browserClient().auth.signUp({
-      email,
-      password,
-      options: {
-        data: { name, ...(username ? { username } : {}) },
-      },
-    })
+      const { data, error } = await browserClient().auth.signUp({
+        email,
+        password,
+        options: {
+          data: { name, ...(username ? { username } : {}) },
+        },
+      })
 
-    if (error) {
-      showErrors(error.code)
-      return
+      if (error) {
+        showErrors(error)
+        return
+      }
+
+      if (data.session) {
+        router.push("/home")
+        return
+      }
+
+      toast("Verification code sent to your email.")
+    } catch (error) {
+      console.error(error)
+      toast("Something went wrong. Please try again.")
     }
-
-    if (data.session) {
-      redirect("/home")
-      return
-    }
-
-    toast("Verification code sent to your email.")
   }
 
   return (
@@ -172,7 +179,11 @@ export const SignUpForm = () => {
           </Field>
         </FieldGroup>
 
-        <Button type="submit" className="cursor-pointer">
+        <Button
+          type="submit"
+          className="cursor-pointer"
+          disabled={isSubmitting}
+        >
           Sign Up
         </Button>
 

@@ -17,7 +17,8 @@ import { useForm, type SubmitHandler } from "react-hook-form"
 import { useState } from "react"
 import { browserClient } from "@/lib/supabase/client"
 import { showErrors } from "@/lib/authErrors"
-import { redirect } from "next/navigation"
+import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 
 type FormValues = {
   email: string
@@ -25,30 +26,57 @@ type FormValues = {
 }
 
 export const SignInForm = () => {
+  const router = useRouter()
   const {
     handleSubmit,
     register,
-    formState: { errors },
+    formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(SignInSchema),
   })
   const [showPassword, setShowPassword] = useState(false)
+  const [unconfirmedEmail, setUnconfirmedEmail] = useState<string | null>(null)
 
   const handleShowPassword = () => setShowPassword((prev) => !prev)
-  const onSubmit: SubmitHandler<FormValues> = async (values) => {
-    const { email, password } = values
 
-    const { error } = await browserClient().auth.signInWithPassword({
-      email,
-      password,
+  const resendVerification = async () => {
+    if (!unconfirmedEmail) return
+
+    const { error } = await browserClient().auth.resend({
+      type: "signup",
+      email: unconfirmedEmail,
     })
 
     if (error) {
-      showErrors(error.code)
+      showErrors(error)
       return
     }
 
-    redirect("/home")
+    toast("Verification email sent. Check your inbox.")
+  }
+
+  const onSubmit: SubmitHandler<FormValues> = async (values) => {
+    try {
+      const { email, password } = values
+
+      const { error } = await browserClient().auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (error) {
+        if (error.code === "email_not_confirmed") {
+          setUnconfirmedEmail(email)
+        }
+        showErrors(error)
+        return
+      }
+
+      router.push("/home")
+    } catch (error) {
+      console.error(error)
+      toast("Something went wrong. Please try again.")
+    }
   }
 
   return (
@@ -100,9 +128,21 @@ export const SignInForm = () => {
         </Label>
       </Field>
 
-      <Button type="submit" className="cursor-pointer">
+      <Button type="submit" className="cursor-pointer" disabled={isSubmitting}>
         Sign In
       </Button>
+
+      {unconfirmedEmail && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={resendVerification}
+          className="cursor-pointer"
+        >
+          Resend verification email
+        </Button>
+      )}
 
       <Link href="/sign-up" className="text-sm">
         Go to Sign Up
