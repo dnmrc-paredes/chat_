@@ -11,6 +11,7 @@ import {
 } from "react"
 import {
   ArrowLeft,
+  Ban,
   Check,
   CheckCheck,
   FileText,
@@ -19,9 +20,12 @@ import {
   Pencil,
   SendHorizonal,
   Trash2,
+  User2,
+  UserMinus,
   X,
 } from "lucide-react"
 import type { RealtimeChannel } from "@supabase/supabase-js"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
@@ -36,11 +40,15 @@ import {
   MAX_ATTACHMENT_SIZE,
   uploadAttachment,
 } from "@/lib/supabase/attachments"
+import { LOBBY_CHANNEL, sendLobbyBroadcast } from "@/lib/supabase/broadcast"
 import { browserClient } from "@/lib/supabase/client"
+import { USER_BLOCKED_EVENT } from "@/hooks/useLobby"
 import { useHasNavigated } from "@/components/Providers/Navigation"
 import { cn, deriveHandle, getInitials } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "../ui/avatar"
+import { BlockedState } from "../Blocking/BlockedState"
 import { Bubble, BubbleContent } from "../ui/bubble"
+import { Button, buttonVariants } from "../ui/button"
 
 /* eslint-disable @next/next/no-img-element -- chat attachments use expiring signed URLs, so next/image caching doesn't apply */
 
@@ -200,6 +208,8 @@ export const DMThread = ({
   const [viewer, setViewer] = useState<{ url: string; name: string } | null>(
     null,
   )
+  const [isLocallyBlocked, setIsLocallyBlocked] = useState(false)
+  const [openActions, setOpenActions] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const attachInputRef = useRef<HTMLInputElement | null>(null)
   const oldestRef = useRef<DMMessage | null>(initialMessages[0] ?? null)
@@ -248,6 +258,21 @@ export const DMThread = ({
         if (error) console.error(error)
       })
   }, [conversationId])
+
+  const probeBlocked = useCallback(async () => {
+    const [blockersResult, myBlock] = await Promise.all([
+      browserClient().rpc("get_my_blockers"),
+      browserClient()
+        .from("blocks")
+        .select("*")
+        .eq("user_id", currentUserId)
+        .eq("blocked_user_id", peer.id)
+        .maybeSingle(),
+    ])
+
+    const blockers = (blockersResult.data as { user_id: string }[] | null) ?? []
+    return blockers.some((entry) => entry.user_id === peer.id) || !!myBlock.data
+  }, [currentUserId, peer.id])
 
   const markConversationDelivered = useCallback(() => {
     browserClient()
@@ -356,6 +381,26 @@ export const DMThread = ({
     markAsRead,
     peer.id,
   ])
+
+  useEffect(() => {
+    const channel = browserClient()
+      .channel(LOBBY_CHANNEL)
+      .on("broadcast", { event: USER_BLOCKED_EVENT }, ({ payload }) => {
+        const { target_id, sender_id } = payload as {
+          target_id: string
+          sender_id: string
+        }
+
+        if (target_id === currentUserId && sender_id === peer.id) {
+          setIsLocallyBlocked(true)
+        }
+      })
+      .subscribe()
+
+    return () => {
+      browserClient().removeChannel(channel)
+    }
+  }, [currentUserId, peer.id])
 
   useEffect(() => {
     const onTyping = (payload: { user_id: string }) => {
@@ -667,6 +712,12 @@ export const DMThread = ({
 
       if (error) {
         console.error(error)
+
+        if (await probeBlocked()) {
+          setIsLocallyBlocked(true)
+          return
+        }
+
         toast("Failed to send message.")
         return
       }
@@ -704,6 +755,74 @@ export const DMThread = ({
   const length = input.trim().length
   const isOverLimit = length > MAX_LENGTH
 
+  const unfriendPeer = async () => {
+    const { error } = await browserClient()
+      .from("friendships")
+      .delete()
+      .or(
+        `and(user_a.eq.${currentUserId},user_b.eq.${peer.id}),and(user_a.eq.${peer.id},user_b.eq.${currentUserId})`,
+      )
+
+    if (error) {
+      console.error(error)
+      toast("Couldn't unfriend.")
+      return
+    }
+
+    setOpenActions(false)
+    toast(`Removed ${peer.name} from your friends.`)
+  }
+
+  const blockPeer = async () => {
+    const { error: blockError } = await browserClient()
+      .from("blocks")
+      .insert({ user_id: currentUserId, blocked_user_id: peer.id })
+
+    if (blockError) {
+      console.error(blockError)
+      toast("Couldn't block user.")
+      return
+    }
+
+    await browserClient()
+      .from("friendships")
+      .delete()
+      .or(
+        `and(user_a.eq.${currentUserId},user_b.eq.${peer.id}),and(user_a.eq.${peer.id},user_b.eq.${currentUserId})`,
+      )
+
+    sendLobbyBroadcast(USER_BLOCKED_EVENT, {
+      target_id: peer.id,
+      sender_id: currentUserId,
+    })
+
+    setOpenActions(false)
+    toast(`${peer.name} blocked.`)
+    router.refresh()
+  }
+
+  useEffect(() => {
+    if (!openActions) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenActions(false)
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [openActions])
+
+  if (isLocallyBlocked) {
+    return (
+      <BlockedState
+        blockStatus="blocked_me"
+        currentUserId={currentUserId}
+        peerId={peer.id}
+        peerName={peer.name}
+        blockedDescription="You can't send messages to this user."
+      />
+    )
+  }
+
   return (
     <div className="flex h-dvh w-full flex-col">
       <header className="flex items-center gap-3 border-b-2 border-input p-3">
@@ -717,15 +836,22 @@ export const DMThread = ({
             <ArrowLeft size={20} />
           </button>
         )}
-        <Avatar className="size-9">
-          <AvatarFallback>{getInitials(peer.name)}</AvatarFallback>
-        </Avatar>
-        <div className="flex min-w-0 flex-col">
-          <span className="truncate text-sm font-medium">{peer.name}</span>
-          <span className="truncate text-xs text-muted-foreground">
-            @{handle}
-          </span>
-        </div>
+        <button
+          type="button"
+          onClick={() => setOpenActions(true)}
+          aria-label={`Open actions for ${peer.name}`}
+          className="flex min-w-0 cursor-pointer items-center gap-3 rounded-md p-1 text-left"
+        >
+          <Avatar className="size-9 shrink-0">
+            <AvatarFallback>{getInitials(peer.name)}</AvatarFallback>
+          </Avatar>
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate text-sm font-medium">{peer.name}</span>
+            <span className="truncate text-xs text-muted-foreground">
+              @{handle}
+            </span>
+          </div>
+        </button>
       </header>
 
       <div
@@ -986,6 +1112,64 @@ export const DMThread = ({
           </span>
         </div>
       </form>
+
+      {openActions && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Actions for ${peer.name}`}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setOpenActions(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-md border border-border bg-background p-5 shadow-lg"
+            onClick={(event) => {
+              event.stopPropagation()
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <Avatar className="size-10">
+                  <AvatarFallback>{getInitials(peer.name)}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{peer.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    @{handle}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={() => setOpenActions(false)}
+                className="cursor-pointer rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-2">
+              <Link
+                href={`/profile/${peer.id}`}
+                className={buttonVariants({ variant: "outline" })}
+                onClick={() => setOpenActions(false)}
+              >
+                <User2 />
+                View Profile
+              </Link>
+              <Button variant="outline" onClick={unfriendPeer}>
+                <UserMinus />
+                Unfriend
+              </Button>
+              <Button variant="destructive" onClick={blockPeer}>
+                <Ban />
+                Block
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {viewer && (
         <div

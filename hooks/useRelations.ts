@@ -183,6 +183,15 @@ export const useRelations = (
     }
 
     setIsBlocked(true)
+    setFriendship(null)
+
+    await browserClient()
+      .from("friendships")
+      .delete()
+      .or(
+        `and(user_a.eq.${user.id},user_b.eq.${targetId}),and(user_a.eq.${targetId},user_b.eq.${user.id})`,
+      )
+
     sendLobbyBroadcast(USER_BLOCKED_EVENT, {
       target_id: targetId,
       sender_id: user.id,

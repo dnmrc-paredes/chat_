@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation"
+import { BlockedState } from "@/components/Blocking/BlockedState"
 import { DMThread, type DMMessage, type DMPeer } from "@/components/DM/DMThread"
 import { serverClient } from "@/lib/supabase/server"
 import { conversationPair } from "@/lib/utils"
@@ -25,6 +26,35 @@ export default async function DMPage({
     .maybeSingle()
 
   if (!peer) notFound()
+
+  const { data: myBlock } = await supabase
+    .from("blocks")
+    .select("*")
+    .eq("user_id", user.id)
+    .eq("blocked_user_id", userId)
+    .maybeSingle()
+
+  const { data: blockersData } = await supabase.rpc("get_my_blockers")
+  const blockers = (blockersData as { user_id: string }[] | null) ?? []
+
+  const blockStatus = myBlock
+    ? "blocked_by_me"
+    : blockers.some((entry) => entry.user_id === userId)
+      ? "blocked_me"
+      : "none"
+
+  if (blockStatus !== "none") {
+    return (
+      <BlockedState
+        blockStatus={blockStatus}
+        currentUserId={user.id}
+        peerId={userId}
+        peerName={peer.name}
+        blockedByMeDescription="You can't send messages to this user until you unblock them."
+        blockedDescription="You can't send messages to this user."
+      />
+    )
+  }
 
   const [userA, userB] = conversationPair(user.id, userId)
 

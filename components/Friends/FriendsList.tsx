@@ -5,9 +5,11 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { USER_BLOCKED_EVENT } from "@/hooks/useLobby"
+import { useOnlineUsers } from "@/hooks/useOnline"
 import { sendLobbyBroadcast } from "@/lib/supabase/broadcast"
 import { browserClient } from "@/lib/supabase/client"
-import { deriveHandle, formatDate, getInitials } from "@/lib/utils"
+import { cn, deriveHandle, formatDate, getInitials } from "@/lib/utils"
+import { PresenceDot } from "../Presence/PresenceDot"
 import { Avatar, AvatarFallback } from "../ui/avatar"
 import { Button, buttonVariants } from "../ui/button"
 
@@ -18,14 +20,28 @@ export type Friend = {
   friendsSince: string | null
 }
 
+export type BlockedUser = {
+  id: string
+  name: string
+  username: string | null
+  blockedSince: string | null
+}
+
 type FriendsListProps = {
   friends: Friend[]
+  blocked: BlockedUser[]
   currentUserId: string
 }
 
-export const FriendsList = ({ friends, currentUserId }: FriendsListProps) => {
+export const FriendsList = ({
+  friends,
+  blocked,
+  currentUserId,
+}: FriendsListProps) => {
   const [list, setList] = useState<Friend[]>(friends)
+  const [blockedList, setBlockedList] = useState<BlockedUser[]>(blocked)
   const [selected, setSelected] = useState<Friend | null>(null)
+  const onlineIds = useOnlineUsers()
 
   useEffect(() => {
     if (!selected) return
@@ -80,8 +96,36 @@ export const FriendsList = ({ friends, currentUserId }: FriendsListProps) => {
     })
 
     setList((prev) => prev.filter((entry) => entry.id !== friend.id))
+    setBlockedList((prev) => [
+      ...prev,
+      {
+        id: friend.id,
+        name: friend.name,
+        username: friend.username,
+        blockedSince: new Date().toISOString(),
+      },
+    ])
     setSelected(null)
     toast(`${friend.name} blocked.`)
+  }
+
+  const unblock = async (blockedUser: BlockedUser) => {
+    const { error } = await browserClient()
+      .from("blocks")
+      .delete()
+      .eq("user_id", currentUserId)
+      .eq("blocked_user_id", blockedUser.id)
+
+    if (error) {
+      console.error(error)
+      toast("Couldn't unblock user.")
+      return
+    }
+
+    setBlockedList((prev) =>
+      prev.filter((entry) => entry.id !== blockedUser.id),
+    )
+    toast(`Unblocked ${blockedUser.name}.`)
   }
 
   const count = list.length
@@ -107,9 +151,12 @@ export const FriendsList = ({ friends, currentUserId }: FriendsListProps) => {
                 aria-label={`Open actions for ${friend.name}`}
                 className="flex w-full cursor-pointer items-center gap-3 rounded-md border-2 border-input p-3 text-left hover:bg-muted"
               >
-                <Avatar className="size-10">
-                  <AvatarFallback>{getInitials(friend.name)}</AvatarFallback>
-                </Avatar>
+                <div className="relative shrink-0">
+                  <Avatar className="size-10">
+                    <AvatarFallback>{getInitials(friend.name)}</AvatarFallback>
+                  </Avatar>
+                  <PresenceDot isOnline={onlineIds.has(friend.id)} />
+                </div>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">
                     {friend.name}
@@ -129,6 +176,51 @@ export const FriendsList = ({ friends, currentUserId }: FriendsListProps) => {
         </ul>
       )}
 
+      {blockedList.length > 0 && (
+        <section className="flex w-full flex-col gap-2">
+          <h2 className="text-sm font-medium text-muted-foreground">
+            Blocked ({blockedList.length})
+          </h2>
+          <ul className="flex flex-col gap-2">
+            {blockedList.map((blockedUser) => (
+              <li
+                key={blockedUser.id}
+                className="flex w-full items-center gap-3 rounded-md border-2 border-muted p-3"
+              >
+                <Avatar className="size-10 opacity-60">
+                  <AvatarFallback>
+                    {getInitials(blockedUser.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">
+                    {blockedUser.name}
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    @
+                    {deriveHandle(
+                      blockedUser.username,
+                      blockedUser.name,
+                      blockedUser.id,
+                    )}
+                  </span>
+                </span>
+                <span className="hidden shrink-0 text-[10px] text-muted-foreground sm:block">
+                  Blocked {formatDate(blockedUser.blockedSince ?? "")}
+                </span>
+                <Button
+                  variant="outline"
+                  className="shrink-0"
+                  onClick={() => unblock(blockedUser)}
+                >
+                  Unblock
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {selected && (
         <div
           role="dialog"
@@ -145,9 +237,14 @@ export const FriendsList = ({ friends, currentUserId }: FriendsListProps) => {
           >
             <div className="flex items-center justify-between">
               <div className="flex min-w-0 items-center gap-3">
-                <Avatar className="size-10">
-                  <AvatarFallback>{getInitials(selected.name)}</AvatarFallback>
-                </Avatar>
+                <div className="relative shrink-0">
+                  <Avatar className="size-10">
+                    <AvatarFallback>
+                      {getInitials(selected.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <PresenceDot isOnline={onlineIds.has(selected.id)} />
+                </div>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">
                     {selected.name}
@@ -172,11 +269,22 @@ export const FriendsList = ({ friends, currentUserId }: FriendsListProps) => {
               </button>
             </div>
 
-            {selected.friendsSince && (
-              <p className="mt-3 text-xs text-muted-foreground">
-                Friends since {formatDate(selected.friendsSince)}
-              </p>
-            )}
+            <div className="mt-3 flex flex-col gap-1 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <span
+                  className={cn(
+                    "size-2 rounded-full",
+                    onlineIds.has(selected.id)
+                      ? "bg-green-500"
+                      : "bg-muted-foreground/50",
+                  )}
+                />
+                {onlineIds.has(selected.id) ? "Online" : "Offline"}
+              </span>
+              {selected.friendsSince && (
+                <span>Friends since {formatDate(selected.friendsSince)}</span>
+              )}
+            </div>
 
             <div className="mt-4 flex flex-col gap-2">
               <Link

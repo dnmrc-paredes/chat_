@@ -32,7 +32,7 @@ export default async function FriendsPage() {
 
   const { data: blocked } = await supabase
     .from("blocks")
-    .select("blocked_user_id")
+    .select("blocked_user_id, created_at")
     .eq("user_id", user.id)
 
   const blockedIds = new Set(
@@ -44,6 +44,29 @@ export default async function FriendsPage() {
       friendship.created_at,
     ]),
   )
+
+  const blockedSince = new Map(
+    (blocked ?? []).map((entry) => [
+      entry.blocked_user_id,
+      entry.created_at ?? null,
+    ]),
+  )
+
+  const blockedUserIds = [...blockedSince.keys()]
+
+  const { data: blockedProfiles } = await supabase
+    .from("profiles")
+    .select("id, name, username")
+    .in("id", blockedUserIds)
+
+  const blockedUsers = (blockedProfiles ?? [])
+    .map((profile) => ({
+      id: profile.id,
+      name: profile.name,
+      username: profile.username,
+      blockedSince: blockedSince.get(profile.id) ?? null,
+    }))
+    .sort((a, b) => (a.blockedSince ?? "").localeCompare(b.blockedSince ?? ""))
 
   const friends = (profiles ?? [])
     .filter((profile) => !blockedIds.has(profile.id))
@@ -57,7 +80,11 @@ export default async function FriendsPage() {
   return (
     <div className="flex h-dvh w-full flex-col gap-4 p-4">
       <h1 className="text-xl font-semibold">Friends</h1>
-      <FriendsList friends={friends} currentUserId={user.id} />
+      <FriendsList
+        friends={friends}
+        blocked={blockedUsers}
+        currentUserId={user.id}
+      />
     </div>
   )
 }
