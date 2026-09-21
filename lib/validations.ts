@@ -16,3 +16,9 @@ export const SignInSchema = z.object({
   email: z.email("Invalid email address").trim(),
   password: z.string().min(1, "Invalid password"),
 })
+
+export const ProfileSettingsSchema = z.object({
+  name: z.string().trim().min(1, "Invalid name"),
+  username: z.string().trim().max(30, "Username must be 30 characters or less"),
+  password: z.string().min(1, "Password is required to confirm changes"),
+})

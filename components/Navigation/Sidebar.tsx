@@ -83,7 +83,7 @@ export const Sidebar = () => {
         {user && (
           <li>
             <Link
-              href={`/profile/${user.id}`}
+              href="/profile"
               aria-label="My profile"
               className="flex size-10 cursor-pointer items-center justify-center rounded-md hover:bg-muted"
             >

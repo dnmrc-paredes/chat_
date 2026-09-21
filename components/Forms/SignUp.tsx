@@ -21,6 +21,7 @@ import { SignUpSchema } from "@/lib/validations"
 import { useForm, type SubmitHandler } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { browserClient } from "@/lib/supabase/client"
+import { slugify } from "@/lib/utils"
 import { toast } from "sonner"
 import { showErrors } from "@/lib/authErrors"
 import { redirect } from "next/navigation"
@@ -30,6 +31,22 @@ type FormValues = {
   email: string
   password: string
   confirmPassword: string
+}
+
+const pickAvailableUsername = async (baseUsername: string) => {
+  let candidate = baseUsername
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { data: available, error } = await browserClient().rpc(
+      "username_available",
+      { desired: candidate },
+    )
+
+    if (error || available) return candidate
+    candidate = `${baseUsername}${Math.random().toString(36).slice(2, 6)}`
+  }
+
+  return `${baseUsername}${Date.now().toString(36).slice(-4)}`
 }
 
 export const SignUpForm = () => {
@@ -46,14 +63,16 @@ export const SignUpForm = () => {
 
   const onSubmit: SubmitHandler<FormValues> = async (values) => {
     const { email, name, password } = values
+    const baseUsername = slugify(name)
+    const username = baseUsername
+      ? await pickAvailableUsername(baseUsername)
+      : undefined
 
     const { data, error } = await browserClient().auth.signUp({
       email,
       password,
       options: {
-        data: {
-          name,
-        },
+        data: { name, ...(username ? { username } : {}) },
       },
     })
 

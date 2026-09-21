@@ -14,6 +14,12 @@ export const getInitials = (name: string) =>
     .join("")
     .toUpperCase() || "?"
 
+export const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+    .slice(0, 30)
+
 export const deriveHandle = (
   username: string | null | undefined,
   name: string,

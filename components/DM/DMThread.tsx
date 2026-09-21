@@ -9,7 +9,7 @@ import {
   SendHorizonal,
 } from "lucide-react"
 import type { RealtimeChannel } from "@supabase/supabase-js"
-import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
   InputGroup,
@@ -18,6 +18,7 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group"
 import { browserClient } from "@/lib/supabase/client"
+import { useHasNavigated } from "@/components/Providers/Navigation"
 import { cn, deriveHandle, getInitials } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "../ui/avatar"
 import { Bubble, BubbleContent } from "../ui/bubble"
@@ -69,6 +70,8 @@ export const DMThread = ({
   initialMessages,
   initialPeerLastReadAt,
 }: DMThreadProps) => {
+  const router = useRouter()
+  const hasNavigated = useHasNavigated()
   const [messages, setMessages] = useState<DMMessage[]>(initialMessages)
   const [input, setInput] = useState("")
   const [isLoadingOlder, setIsLoadingOlder] = useState(false)
@@ -406,13 +409,16 @@ export const DMThread = ({
   return (
     <div className="flex h-dvh w-full flex-col">
       <header className="flex items-center gap-3 border-b-2 border-input p-3">
-        <Link
-          href="/home"
-          aria-label="Back to lobby"
-          className="flex size-10 shrink-0 items-center justify-center rounded-md hover:bg-muted"
-        >
-          <ArrowLeft size={20} />
-        </Link>
+        {hasNavigated && (
+          <button
+            type="button"
+            onClick={() => router.back()}
+            aria-label="Back"
+            className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-muted"
+          >
+            <ArrowLeft size={20} />
+          </button>
+        )}
         <Avatar className="size-9">
           <AvatarFallback>{getInitials(peer.name)}</AvatarFallback>
         </Avatar>
