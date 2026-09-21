@@ -49,6 +49,7 @@ import { Avatar, AvatarFallback } from "../ui/avatar"
 import { BlockedState } from "../Blocking/BlockedState"
 import { Bubble, BubbleContent } from "../ui/bubble"
 import { Button, buttonVariants } from "../ui/button"
+import { Dialog, DialogClose, DialogContent } from "../ui/dialog"
 
 /* eslint-disable @next/next/no-img-element -- chat attachments use expiring signed URLs, so next/image caching doesn't apply */
 
@@ -1113,86 +1114,79 @@ export const DMThread = ({
         </div>
       </form>
 
-      {openActions && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Actions for ${peer.name}`}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setOpenActions(false)}
-        >
-          <div
-            className="w-full max-w-sm rounded-md border border-border bg-background p-5 shadow-lg"
-            onClick={(event) => {
-              event.stopPropagation()
-            }}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex min-w-0 items-center gap-3">
-                <Avatar className="size-10">
-                  <AvatarFallback>{getInitials(peer.name)}</AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{peer.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    @{handle}
-                  </p>
-                </div>
+      <Dialog
+        open={openActions}
+        onOpenChange={(open) => {
+          if (!open) setOpenActions(false)
+        }}
+      >
+        <DialogContent aria-label={`Actions for ${peer.name}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <Avatar className="size-10">
+                <AvatarFallback>{getInitials(peer.name)}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{peer.name}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  @{handle}
+                </p>
               </div>
-              <button
-                type="button"
-                aria-label="Close"
-                onClick={() => setOpenActions(false)}
-                className="cursor-pointer rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <X size={16} />
-              </button>
             </div>
-
-            <div className="mt-4 flex flex-col gap-2">
-              <Link
-                href={`/profile/${peer.id}`}
-                className={buttonVariants({ variant: "outline" })}
-                onClick={() => setOpenActions(false)}
-              >
-                <User2 />
-                View Profile
-              </Link>
-              <Button variant="outline" onClick={unfriendPeer}>
-                <UserMinus />
-                Unfriend
-              </Button>
-              <Button variant="destructive" onClick={blockPeer}>
-                <Ban />
-                Block
-              </Button>
-            </div>
+            <DialogClose
+              aria-label="Close"
+              className="cursor-pointer rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X size={16} />
+            </DialogClose>
           </div>
-        </div>
-      )}
+
+          <div className="mt-4 flex flex-col gap-2">
+            <Link
+              href={`/profile/${peer.id}`}
+              className={buttonVariants({ variant: "outline" })}
+              onClick={() => setOpenActions(false)}
+            >
+              <User2 />
+              View Profile
+            </Link>
+            <Button variant="outline" onClick={unfriendPeer}>
+              <UserMinus />
+              Unfriend
+            </Button>
+            <Button variant="destructive" onClick={blockPeer}>
+              <Ban />
+              Block
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {viewer && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={viewer.name}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setViewer(null)}
+        <Dialog
+          open={!!viewer}
+          onOpenChange={(open) => {
+            if (!open) setViewer(null)
+          }}
         >
-          <button
-            type="button"
-            aria-label="Close image"
-            onClick={() => setViewer(null)}
-            className="absolute right-4 top-4 flex size-9 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+          <DialogContent
+            aria-label={viewer.name}
+            overlayClassName="bg-black/80"
+            className="max-w-[calc(100vw-2rem)] border-none bg-transparent p-0 shadow-none"
           >
-            <X size={18} />
-          </button>
-          <img
-            src={viewer.url}
-            alt={viewer.name}
-            className="max-h-full max-w-full cursor-zoom-out rounded-md object-contain"
-          />
-        </div>
+            <DialogClose
+              aria-label="Close image"
+              className="absolute right-4 top-4 flex size-9 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+            >
+              <X size={18} />
+            </DialogClose>
+            <img
+              src={viewer.url}
+              alt={viewer.name}
+              className="max-h-[85dvh] max-w-full cursor-zoom-out rounded-md object-contain"
+            />
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

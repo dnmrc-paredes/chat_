@@ -4,7 +4,6 @@ import { Bell, Home, LogOut, MessagesSquare, User2, X } from "lucide-react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
 import { useEffect, useState } from "react"
-import { createPortal } from "react-dom"
 import { browserClient } from "@/lib/supabase/client"
 import { useInbox } from "@/hooks/useInbox"
 import { useNotifications } from "@/hooks/useNotifications"
@@ -12,6 +11,7 @@ import { cn, getInitials } from "@/lib/utils"
 import { useLobbyChannel } from "../Providers/Lobby"
 import { Avatar, AvatarFallback } from "../ui/avatar"
 import { Button } from "../ui/button"
+import { Dialog, DialogClose, DialogContent } from "../ui/dialog"
 import { ThemeToggle } from "./ThemeToggle"
 import { MessagesDrawer } from "./MessagesDrawer"
 
@@ -160,27 +160,23 @@ export const Sidebar = () => {
         </li>
       </ul>
 
-      {isOpen &&
-        createPortal(
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-            onClick={(event) => {
-              if (event.target === event.currentTarget) setIsOpen(false)
-            }}
-          >
-            <div className="flex w-full max-w-md flex-col gap-3 rounded-md border border-border bg-background p-4 shadow-lg">
+      {isOpen && (
+        <Dialog
+          open={isOpen}
+          onOpenChange={(open) => {
+            if (!open) setIsOpen(false)
+          }}
+        >
+          <DialogContent aria-label="Notifications" className="p-4">
+            <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-medium">Notifications</h2>
-                <button
-                  type="button"
-                  onClick={() => setIsOpen(false)}
+                <DialogClose
                   aria-label="Close notifications"
                   className="cursor-pointer"
                 >
                   <X size={16} />
-                </button>
+                </DialogClose>
               </div>
 
               <div className="flex max-h-96 flex-col gap-4 overflow-y-auto">
@@ -201,6 +197,7 @@ export const Sidebar = () => {
                             ? `/profile/${notification.sender_id}`
                             : "#"
                         }
+                        onClick={() => setIsOpen(false)}
                         className="flex cursor-pointer items-center gap-2 rounded-md p-2 text-left hover:bg-muted"
                       >
                         <span
@@ -276,9 +273,9 @@ export const Sidebar = () => {
                 </div>
               )}
             </div>
-          </div>,
-          document.body,
-        )}
+          </DialogContent>
+        </Dialog>
+      )}
 
       <MessagesDrawer
         isOpen={isMessagesOpen}
