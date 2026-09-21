@@ -6,14 +6,18 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type ChangeEvent,
   type UIEvent,
 } from "react"
 import {
   ArrowLeft,
   Check,
   CheckCheck,
+  FileText,
   Loader2,
+  Paperclip,
   SendHorizonal,
+  X,
 } from "lucide-react"
 import type { RealtimeChannel } from "@supabase/supabase-js"
 import { useRouter } from "next/navigation"
@@ -24,11 +28,19 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group"
+import {
+  deleteAttachment,
+  getAttachmentUrl,
+  MAX_ATTACHMENT_SIZE,
+  uploadAttachment,
+} from "@/lib/supabase/attachments"
 import { browserClient } from "@/lib/supabase/client"
 import { useHasNavigated } from "@/components/Providers/Navigation"
 import { cn, deriveHandle, getInitials } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "../ui/avatar"
 import { Bubble, BubbleContent } from "../ui/bubble"
+
+/* eslint-disable @next/next/no-img-element -- chat attachments use expiring signed URLs, so next/image caching doesn't apply */
 
 const PAGE_SIZE = 40
 const INITIAL_PAGE_SIZE = 30
@@ -46,6 +58,15 @@ export type DMMessage = {
   text: string
   created_at: string
   delivered_at: string | null
+  attachment_path: string | null
+  attachment_name: string | null
+  attachment_type: string | null
+}
+
+type DMAttachment = {
+  path: string
+  name: string
+  type: string
 }
 
 export type DMPeer = {
@@ -69,6 +90,77 @@ const formatTime = (timestamp: string) =>
     minute: "2-digit",
   }).format(new Date(timestamp))
 
+const useAttachmentUrl = (path: string) => {
+  const [url, setUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+
+    getAttachmentUrl(path)
+      .then((resolved) => {
+        if (active) setUrl(resolved)
+      })
+      .catch((error) => console.error(error))
+
+    return () => {
+      active = false
+    }
+  }, [path])
+
+  return url
+}
+
+const AttachmentView = ({
+  attachment,
+  onOpen,
+}: {
+  attachment: DMAttachment
+  onOpen?: (url: string, name: string) => void
+}) => {
+  const url = useAttachmentUrl(attachment.path)
+  const isImage = attachment.type.startsWith("image/")
+
+  if (!url) {
+    return (
+      <div className="flex min-h-24 min-w-48 items-center justify-center">
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (isImage) {
+    return (
+      <button
+        type="button"
+        aria-label={`Open ${attachment.name}`}
+        onClick={() => onOpen?.(url, attachment.name)}
+        className="block w-full cursor-zoom-in"
+      >
+        <img
+          src={url}
+          alt={attachment.name}
+          loading="lazy"
+          decoding="async"
+          className="block h-auto max-h-72 w-full max-w-[300px] object-cover"
+        />
+      </button>
+    )
+  }
+
+  return (
+    <a
+      href={url}
+      download={attachment.name}
+      className="flex min-w-0 items-center gap-2 rounded-lg px-3 py-2 hover:bg-black/5 dark:hover:bg-white/10"
+    >
+      <FileText className="size-5 shrink-0" />
+      <span className="min-w-0 truncate text-sm font-medium">
+        {attachment.name}
+      </span>
+    </a>
+  )
+}
+
 export const DMThread = ({
   conversationId,
   peer,
@@ -89,7 +181,18 @@ export const DMThread = ({
   const [peerLastReadAt, setPeerLastReadAt] = useState<string | null>(
     initialPeerLastReadAt,
   )
+  const [pendingAttachment, setPendingAttachment] = useState<{
+    name: string
+    type: string
+    path: string
+    previewUrl: string
+  } | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [viewer, setViewer] = useState<{ url: string; name: string } | null>(
+    null,
+  )
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const attachInputRef = useRef<HTMLInputElement | null>(null)
   const oldestRef = useRef<DMMessage | null>(initialMessages[0] ?? null)
   const scrollDataRef = useRef({ scrollHeight: 0, scrollTop: 0 })
   const nearBottomRef = useRef(true)
@@ -371,13 +474,75 @@ export const DMThread = ({
     if (el.scrollTop < 32) loadOlder()
   }
 
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget
+    const file = input.files?.[0]
+    input.value = ""
+    if (!file || isUploading) return
+
+    if (file.size > MAX_ATTACHMENT_SIZE) {
+      toast("File exceeds the 10 MB limit.")
+      return
+    }
+
+    const previewUrl = URL.createObjectURL(file)
+    setPendingAttachment({
+      name: file.name,
+      type: file.type || "application/octet-stream",
+      path: "",
+      previewUrl,
+    })
+    setIsUploading(true)
+
+    try {
+      const uploaded = await uploadAttachment({
+        file,
+        conversationId,
+        senderId: currentUserId,
+      })
+      setPendingAttachment((prev) =>
+        prev
+          ? {
+              ...prev,
+              name: uploaded.name,
+              type: uploaded.type,
+              path: uploaded.path,
+            }
+          : prev,
+      )
+    } catch (error) {
+      console.error(error)
+      toast("Upload failed. Try again.")
+      setPendingAttachment((prev) => {
+        if (prev) URL.revokeObjectURL(prev.previewUrl)
+        return null
+      })
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleRemoveAttachment = () => {
+    const attachment = pendingAttachment
+    if (!attachment) return
+
+    URL.revokeObjectURL(attachment.previewUrl)
+    setPendingAttachment(null)
+    if (attachment.path) {
+      deleteAttachment(attachment.path).catch((error) => console.error(error))
+    }
+  }
+
   const handleSend = async () => {
     const text = input.trim()
-    if (!text) return
+    const attachment = pendingAttachment
+    if (!text && !attachment) return
     if (text.length > MAX_LENGTH) {
       toast("Message is too long.")
       return
     }
+    if (attachment && !attachment.path) return
+    if (isUploading) return
 
     sendTypingStop()
     setInput("")
@@ -392,6 +557,9 @@ export const DMThread = ({
           sender_id: currentUserId,
           sender_name: currentUserName,
           text,
+          attachment_path: attachment?.path ?? null,
+          attachment_name: attachment?.name ?? null,
+          attachment_type: attachment?.type ?? null,
         })
         .select()
         .single()
@@ -414,7 +582,22 @@ export const DMThread = ({
     )
 
     scrollToBottomRef.current = true
+
+    if (attachment) {
+      URL.revokeObjectURL(attachment.previewUrl)
+      setPendingAttachment(null)
+    }
   }
+
+  useEffect(() => {
+    if (!viewer) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setViewer(null)
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [viewer])
 
   const handle = deriveHandle(peer.username, peer.name, peer.id)
   const length = input.trim().length
@@ -483,9 +666,41 @@ export const DMThread = ({
                 align={isOwn ? "end" : "start"}
                 variant={isOwn ? "default" : "secondary"}
               >
-                <BubbleContent className="max-w-[initial]">
-                  {message.text}
-                </BubbleContent>
+                {(() => {
+                  const attachment =
+                    message.attachment_path &&
+                    message.attachment_name &&
+                    message.attachment_type
+                      ? {
+                          path: message.attachment_path,
+                          name: message.attachment_name,
+                          type: message.attachment_type,
+                        }
+                      : null
+
+                  return (
+                    <BubbleContent
+                      className={cn(
+                        "max-w-[initial]",
+                        attachment && "overflow-hidden p-0",
+                      )}
+                    >
+                      {attachment && (
+                        <AttachmentView
+                          attachment={attachment}
+                          onOpen={(url, name) => setViewer({ url, name })}
+                        />
+                      )}
+                      {message.text.trim() && (
+                        <span
+                          className={cn("block", attachment && "px-3 py-2")}
+                        >
+                          {message.text}
+                        </span>
+                      )}
+                    </BubbleContent>
+                  )
+                })()}
               </Bubble>
               <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                 <span>{formatTime(message.created_at)}</span>
@@ -537,7 +752,52 @@ export const DMThread = ({
           handleSend()
         }}
       >
+        {pendingAttachment && (
+          <div className="mb-2 flex items-center gap-2 rounded-md bg-muted px-2 py-2">
+            {pendingAttachment.type.startsWith("image/") ? (
+              <img
+                src={pendingAttachment.previewUrl}
+                alt=""
+                className="size-10 shrink-0 rounded object-cover"
+              />
+            ) : (
+              <FileText className="size-5 shrink-0 text-muted-foreground" />
+            )}
+            <span className="min-w-0 flex-1 truncate text-xs font-medium">
+              {pendingAttachment.name}
+            </span>
+            {isUploading && (
+              <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+            )}
+            <button
+              type="button"
+              aria-label="Remove attachment"
+              onClick={handleRemoveAttachment}
+              disabled={isUploading}
+              className="shrink-0 cursor-pointer rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-foreground/10 disabled:pointer-events-none disabled:opacity-50"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
         <InputGroup>
+          <InputGroupAddon align="inline-start">
+            <InputGroupButton
+              type="button"
+              variant="ghost"
+              aria-label="Attach a file"
+              disabled={isUploading || !!pendingAttachment}
+              onClick={() => attachInputRef.current?.click()}
+            >
+              <Paperclip className="size-4" />
+            </InputGroupButton>
+            <input
+              ref={attachInputRef}
+              type="file"
+              className="sr-only"
+              onChange={handleFileChange}
+            />
+          </InputGroupAddon>
           <InputGroupInput
             value={input}
             placeholder={`Message @${handle}`}
@@ -550,7 +810,11 @@ export const DMThread = ({
             }}
           />
           <InputGroupAddon align="inline-end">
-            <InputGroupButton type="submit" variant="secondary">
+            <InputGroupButton
+              type="submit"
+              variant="secondary"
+              disabled={isUploading}
+            >
               <SendHorizonal />
             </InputGroupButton>
           </InputGroupAddon>
@@ -566,6 +830,32 @@ export const DMThread = ({
           </span>
         </div>
       </form>
+
+      {viewer && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={viewer.name}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setViewer(null)}
+        >
+          <button
+            type="button"
+            aria-label="Close image"
+            onClick={() => setViewer(null)}
+            className="absolute right-4 top-4 flex size-9 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+          >
+            <X size={18} />
+          </button>
+          <img
+            src={viewer.url}
+            alt={viewer.name}
+            className="max-h-full max-w-full cursor-zoom-out rounded-md object-contain"
+          />
+        </div>
+      )}
     </div>
   )
 }
+
+/* eslint-enable @next/next/no-img-element */
