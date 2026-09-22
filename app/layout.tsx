@@ -58,7 +58,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <Toaster />
           <OnlinePresenceProvider />
           <div className="flex justify-center items-center w-full relative">
-            <div className="flex w-full max-w-[600px] flex-col">
+            <div className="flex w-full max-w-150 flex-col">
               <NavigationProvider>
                 <TopNav />
                 <BackHeader />

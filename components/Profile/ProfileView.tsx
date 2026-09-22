@@ -1,6 +1,6 @@
 "use client"
 
-import type { Friendship } from "@/hooks/useLobby"
+import type { Friendship, FriendStatus } from "@/hooks/useLobby"
 import { useRelations } from "@/hooks/useRelations"
 import { deriveHandle, formatDate, getInitials } from "@/lib/utils"
 import Link from "next/link"
@@ -19,6 +19,24 @@ type ProfileViewProps = {
   currentUserId: string
   initialFriendship: Friendship | null
   initialBlocked: boolean
+}
+
+const FriendStatus = ({
+  addFriend,
+  status,
+}: {
+  status: FriendStatus
+  addFriend: () => void
+}) => {
+  return status === "outgoing" ? (
+    <Button variant="secondary" className="w-full" disabled>
+      Request Sent
+    </Button>
+  ) : (
+    <Button variant="secondary" className="w-full" onClick={addFriend}>
+      Add Friend
+    </Button>
+  )
 }
 
 export const ProfileView = ({
@@ -115,18 +133,8 @@ export const ProfileView = ({
               >
                 Accept Request
               </Button>
-            ) : status === "outgoing" ? (
-              <Button variant="secondary" className="w-full" disabled>
-                Request Sent
-              </Button>
             ) : (
-              <Button
-                variant="secondary"
-                className="w-full"
-                onClick={addFriend}
-              >
-                Add Friend
-              </Button>
+              <FriendStatus addFriend={addFriend} status={status} />
             )}
             {isBlocked ? (
               <Button variant="outline" className="w-full" onClick={unblock}>

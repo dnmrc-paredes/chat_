@@ -37,11 +37,10 @@ export default async function DMPage({
   const { data: blockersData } = await supabase.rpc("get_my_blockers")
   const blockers = (blockersData as { user_id: string }[] | null) ?? []
 
-  const blockStatus = myBlock
-    ? "blocked_by_me"
-    : blockers.some((entry) => entry.user_id === userId)
-      ? "blocked_me"
-      : "none"
+  const blockedCondition = blockers.some((entry) => entry.user_id === userId)
+    ? "blocked_me"
+    : "none"
+  const blockStatus = myBlock ? "blocked_by_me" : blockedCondition
 
   if (blockStatus !== "none") {
     return (

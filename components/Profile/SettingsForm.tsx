@@ -107,7 +107,7 @@ export const ProfileSettings = ({
     if (values.name !== info.name || usernameValue !== info.username) {
       attributes.data = {
         name: values.name,
-        username: usernameValue ? usernameValue : null,
+        username: usernameValue ?? null,
       }
     }
 

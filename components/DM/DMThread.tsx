@@ -155,7 +155,7 @@ const AttachmentView = ({
           alt={attachment.name}
           loading="lazy"
           decoding="async"
-          className="block h-auto max-h-72 w-full max-w-[300px] object-cover"
+          className="block h-auto max-h-72 w-full max-w-75 object-cover"
         />
       </button>
     )
@@ -243,7 +243,7 @@ export const DMThread = ({
 
   useEffect(() => {
     const el = containerRef.current
-    const lastMessage = messages[messages.length - 1]
+    const lastMessage = messages.at(-1)
     if (!el || !lastMessage) return
 
     const isOwn = lastMessage.sender_id === currentUserId
@@ -441,7 +441,7 @@ export const DMThread = ({
     }
   }, [conversationId, currentUserId])
 
-  const sendTyping = useCallback(() => {
+  const sendTyping = useCallback(async () => {
     const channel = typingChannelRef.current
     if (!channel) return
 
@@ -450,7 +450,7 @@ export const DMThread = ({
     lastTypingSentRef.current = now
 
     try {
-      channel.send({
+      await channel.send({
         type: "broadcast",
         event: TYPING_EVENT,
         payload: { user_id: currentUserId },
@@ -460,12 +460,12 @@ export const DMThread = ({
     }
   }, [currentUserId])
 
-  const sendTypingStop = useCallback(() => {
+  const sendTypingStop = useCallback(async () => {
     const channel = typingChannelRef.current
     if (!channel) return
 
     try {
-      channel.send({
+      await channel.send({
         type: "broadcast",
         event: TYPING_STOP_EVENT,
         payload: { user_id: currentUserId },
@@ -659,7 +659,7 @@ export const DMThread = ({
       const target = messages.find((message) => message.id === editingId)
       if (
         !target ||
-        target.sender_id !== currentUserId ||
+        target?.sender_id !== currentUserId ||
         !isWithinEditWindow(target.created_at)
       ) {
         toast("Message can no longer be edited.")
@@ -874,7 +874,7 @@ export const DMThread = ({
 
         {messages.map((message) => {
           const isOwn = message.sender_id === currentUserId
-          const isLastMessage = message.id === messages[messages.length - 1]?.id
+          const isLastMessage = message.id === messages.at(-1)?.id
           const isReadByPeer =
             isOwn &&
             !!peerLastReadAt &&

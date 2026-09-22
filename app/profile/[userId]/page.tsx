@@ -45,11 +45,8 @@ export default async function ProfilePage({
   const blockers = (blockersData as { user_id: string }[] | null) ?? []
   const blockedByPeer = blockers.some((entry) => entry.user_id === userId)
 
-  const blockStatus = block
-    ? "blocked_by_me"
-    : blockedByPeer
-      ? "blocked_me"
-      : "none"
+  const blockedCondition = blockedByPeer ? "blocked_me" : "none"
+  const blockStatus = block ? "blocked_by_me" : blockedCondition
 
   if (blockStatus !== "none") {
     return (
