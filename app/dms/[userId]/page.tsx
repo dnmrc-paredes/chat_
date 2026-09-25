@@ -55,6 +55,17 @@ export default async function DMPage({
     )
   }
 
+  const { data: friendship } = await supabase
+    .from("friendships")
+    .select("user_a")
+    .eq("status", "accepted")
+    .or(
+      `and(user_a.eq.${user.id},user_b.eq.${userId}),and(user_a.eq.${userId},user_b.eq.${user.id})`,
+    )
+    .maybeSingle()
+
+  const isFriend = !!friendship
+
   const [userA, userB] = conversationPair(user.id, userId)
 
   let conversation: {
@@ -124,13 +135,9 @@ export default async function DMPage({
         } as DMPeer
       }
       currentUserId={user.id}
-      currentUserName={
-        (user.user_metadata?.name as string | undefined) ??
-        user.email ??
-        "Guest"
-      }
       initialMessages={initialMessages}
       initialPeerLastReadAt={peerLastReadAt ?? null}
+      isFriend={isFriend}
     />
   )
 }

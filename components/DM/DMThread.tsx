@@ -10,6 +10,7 @@ import {
   Loader2,
   Paperclip,
   Pencil,
+  Plus,
   SendHorizonal,
   Trash2,
   User2,
@@ -77,9 +78,9 @@ type DMThreadProps = {
   conversationId: string
   peer: DMPeer
   currentUserId: string
-  currentUserName: string
   initialMessages: DMMessage[]
   initialPeerLastReadAt: string | null
+  isFriend: boolean
 }
 
 const formatTime = (timestamp: string) =>
@@ -168,6 +169,7 @@ export const DMThread = ({
   currentUserId,
   initialMessages,
   initialPeerLastReadAt,
+  isFriend,
 }: DMThreadProps) => {
   const router = useRouter()
   const hasNavigated = useHasNavigated()
@@ -216,6 +218,7 @@ export const DMThread = ({
     input,
     isOverLimit,
     isUploading,
+    length,
     pendingAttachment,
     setInput,
     startEditing,
@@ -257,6 +260,23 @@ export const DMThread = ({
 
     setOpenActions(false)
     toast(`Removed ${peer.name} from your friends.`)
+    router.refresh()
+  }
+
+  const addFriend = async () => {
+    const { error } = await browserClient()
+      .from("friendships")
+      .insert({ user_a: currentUserId, user_b: peer.id })
+
+    if (error) {
+      console.error(error)
+      toast("Couldn't add friend.")
+      return
+    }
+
+    setOpenActions(false)
+    toast(`Added ${peer.name} as a friend.`)
+    router.refresh()
   }
 
   const blockPeer = async () => {
@@ -635,10 +655,17 @@ export const DMThread = ({
               <User2 />
               View Profile
             </Link>
-            <Button variant="outline" onClick={unfriendPeer}>
-              <UserMinus />
-              Unfriend
-            </Button>
+            {isFriend ? (
+              <Button variant="outline" onClick={unfriendPeer}>
+                <UserMinus />
+                Unfriend
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={addFriend}>
+                <Plus />
+                Add Friend
+              </Button>
+            )}
             <Button variant="destructive" onClick={blockPeer}>
               <Ban />
               Block

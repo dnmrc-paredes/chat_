@@ -6,5 +6,13 @@ import type { ComponentProps } from "react"
 type ThemeProviderProps = ComponentProps<typeof NextThemesProvider>
 
 export const ThemeProvider = ({ children, ...props }: ThemeProviderProps) => (
-  <NextThemesProvider {...props}>{children}</NextThemesProvider>
+  <NextThemesProvider
+    {...props}
+    attribute="class"
+    defaultTheme="system"
+    enableSystem={false}
+    disableTransitionOnChange
+  >
+    {children}
+  </NextThemesProvider>
 )

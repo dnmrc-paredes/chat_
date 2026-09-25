@@ -13,9 +13,11 @@ import { useLobbyChannel } from "@/components/Providers/Lobby"
 import { cn } from "@/lib/utils"
 
 const MAX_LENGTH = 500
-
-const emptySubscribe = () => () => {}
 const hydratedSnapshot = () => true
+const emptySubscribe = (onStoreChange: () => void) => {
+  onStoreChange()
+  return () => {}
+}
 
 export const ChatForm = () => {
   const { inputText, setInputText, sendMessage, isConnected } =

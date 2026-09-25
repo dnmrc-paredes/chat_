@@ -38,6 +38,7 @@ type UseDMComposerReturn = {
   pendingAttachment: PendingAttachment
   isUploading: boolean
   editingId: string | null
+  length: number
   isOverLimit: boolean
   handleFileChange: (event: ChangeEvent<HTMLInputElement>) => Promise<void>
   handleRemoveAttachment: () => void
@@ -217,6 +218,7 @@ export function useDMComposer({
     pendingAttachment,
     isUploading,
     editingId,
+    length,
     isOverLimit,
     handleFileChange,
     handleRemoveAttachment,
