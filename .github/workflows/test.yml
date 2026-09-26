@@ -1,0 +1,54 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same ref to avoid burning minutes.
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+
+    env:
+      # Placeholders so `next build` can evaluate Supabase env references.
+      # Real values are never needed for the test suite, which mocks the client.
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder-publishable-key
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Verify formatting is committed
+        # `npm run lint` ends in `prettier --write`, so formatting drift is
+        # auto-fixed rather than failing. The CI checkout starts clean, so any
+        # diff here means unformatted code was committed.
+        run: git diff --exit-code
+
+      - name: Unit tests
+        run: npx jest --coverage
+
+      - name: Build
+        run: npm run build
